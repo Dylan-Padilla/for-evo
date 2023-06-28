@@ -1,5 +1,5 @@
 new("snmfProject", snmfProject.file = "gl_geno.snmfProject", 
-    projDir = "/Users/dylanpadilla/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/", 
+    projDir = "/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/", 
     snmfDir = "gl_geno.snmf/", input.file = "gl_geno.geno", runs = list(), 
     K = c(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 1L, 2L, 3L, 
     4L, 5L, 6L, 7L, 8L, 9L, 10L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 
@@ -287,5 +287,5 @@ new("snmfProject", snmfProject.file = "gl_geno.snmfProject",
     "K6/run50/gl_geno_r50.6.snmfClass", "K7/run50/gl_geno_r50.7.snmfClass", 
     "K8/run50/gl_geno_r50.8.snmfClass", "K9/run50/gl_geno_r50.9.snmfClass", 
     "K10/run50/gl_geno_r50.10.snmfClass"), n = 151L, L = 1550L, 
-    creationTime = structure(1675638707.22687, class = c("POSIXct", 
+    creationTime = structure(1687298519.97681, class = c("POSIXct", 
     "POSIXt")))
