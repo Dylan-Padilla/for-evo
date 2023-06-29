@@ -1,0 +1,1204 @@
+---
+title: " "
+output:
+   html_document:
+     css: style.css
+---
+
+<p align = "justify">
+
+<font size="5"> Data analysis for: </font>
+
+<font size="4"> Dylan J. Padilla Perez, 2023. Geographic variation of the *for* gene reveals signatures of local adaptation in *Drosophila melanogaster*.</font>
+</p>
+
+</p></p>
+
+[Dylan J. Padilla Perez](https://dylanpadilla.netlify.app/), School of Life Sciences, Arizona State University, Tempe, AZ 85287, USA.
+</p></p>
+
+
+```{r, setup, include=FALSE}
+
+knitr::opts_chunk$set(dpi = 300, warning = FALSE, error = FALSE, message = FALSE, fig.align = "center", fig.height = 7, fig.width = 7)
+
+```
+
+
+<b>
+<font size="5"> Library </font>
+</b>
+
+</p></p>
+
+```{r,  echo = TRUE, warning = FALSE, message = FALSE}
+
+library(adegenet)
+library(ade4)
+library(car)
+library(ComplexHeatmap)
+library(data.table)
+library(dartR)
+library(dplyr)
+library(ecodist)
+library(ggsn)
+library(grid)
+library(gridBase)
+library(ggplot2)
+library(gplots)
+library(ggpubr)
+library(ggspatial)
+library(hierfstat)
+library(lattice)
+library(LEA)
+library(lfmm)
+library(MASS)
+library(maps)
+library(maptools)
+library(mapplots)
+library(miscTools)
+library(naniar)
+library(OutFLANK)
+library(patchwork)
+library(pegas)
+library(poppr)
+library(qvalue)
+library(randomcoloR)
+library(raster)
+library(reshape)
+library(rgeos)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(rworldxtra)
+library(rworldmap)
+library(scales)
+library(sf)
+library(shape)
+library(SeqArray)
+library(SeqVarTools)
+library(SNPRelate)
+library(stringr)
+library(vcfR)
+library(vegan)
+library(xtable)
+
+
+```
+
+</p></p>
+<b>
+<font size="5"> Session information </font>
+</b>
+</p></p>
+
+```{r, warning = FALSE, comment = " "}
+
+R.version
+sessionInfo()
+
+```
+
+<br><br>
+<b>
+<font size="5"> Quality control and SNP isolation </font>
+</b>
+<br><br>
+
+
+
+```{r}
+
+
+## load meta-data file
+
+samps <- fread("samps_10Nov2020.csv")
+
+## open GDS for common SNPs (PoolSNP)
+
+genofile <- seqOpen("dest.all.PoolSNP.001.50.10Nov2020.ann.gds", allow.duplicate = TRUE)
+
+## common SNP.dt
+
+snp.dt <- data.table(chr = seqGetData(genofile, "chromosome"),
+                     pos = seqGetData(genofile, "position"),
+                     nAlleles = seqGetData(genofile, "$num_allele"),
+                     id = seqGetData(genofile, "variant.id"),
+                     genotype = seqGetData(genofile, "allele"))
+
+snp.dt <- snp.dt[nAlleles == 2]
+seqSetFilter(genofile, snp.dt$id)
+
+## filter to target
+
+snp.tmp <- data.table(chr ="2L", pos = 3622074:3656953)
+setkey(snp.tmp, chr, pos)
+setkey(snp.dt, chr, pos)
+seqSetFilter(genofile, variant.id=snp.dt[J(snp.tmp), nomatch = 0]$id)
+
+## get annotations
+
+message("Annotations")
+tmp <- seqGetData(genofile, "annotation/info/ANN")
+len1 <- tmp$length
+len2 <- tmp$data
+
+snp.dt1 <- data.table(len = rep(len1, times = len1), ann = len2, id = rep(snp.dt[J(snp.tmp), nomatch = 0]$id, times = len1))
+
+## Extract data between the 2nd and third | symbol
+
+snp.dt1[ ,class := tstrsplit(snp.dt1$ann,"\\|")[[2]]]
+snp.dt1[ ,gene := tstrsplit(snp.dt1$ann,"\\|")[[4]]]
+
+## Collapse additional annotations to original SNP vector length
+
+snp.dt1.an <- snp.dt1[,list(n = length(class), col = paste(class, collapse = ","), gene = paste(gene, collapse = ",")), list(variant.id = id)]
+
+snp.dt1.an[,col := tstrsplit(snp.dt1.an$col,"\\,")[[1]]]
+snp.dt1.an[,gene := tstrsplit(snp.dt1.an$gene,"\\,")[[1]]]
+
+## get frequencies
+
+message("Allele Freqs")
+
+ad <- seqGetData(genofile, "annotation/format/AD")
+dp <- seqGetData(genofile, "annotation/format/DP")
+
+af <- data.table(ad = expand.grid(ad$data)[,1],
+                 dp = expand.grid(dp)[,1],
+                 sampleId = rep(seqGetData(genofile, "sample.id"), dim(ad$data)[2]),
+                 variant.id = rep(seqGetData(genofile, "variant.id"), each = dim(ad$data)[1]))
+
+## merge them together
+
+message("merge")
+afi <- merge(af, snp.dt1.an, by = "variant.id")
+afi <- merge(afi, snp.dt, by.x = "variant.id", by.y = "id")
+
+afi[ , af := ad/dp]
+
+## calculate effective read-depth
+
+afis <- merge(afi, samps, by = "sampleId")
+
+afis[chr == "X", nEff := round((dp*nFlies - 1)/(dp+nFlies))]
+afis[chr != "X", nEff := round((dp*2*nFlies - 1)/(dp+2*nFlies))]
+afis[ ,af_nEff := round(af*nEff)/nEff]
+
+
+## subsetting dataset
+
+names(afis)
+season.dat <- as.data.frame(afis[ , c(21, 30, 1, 13, 14, 15, 19, 18, 20, 2, 11, 12, 6, 22, 99)])
+str(season.dat)
+head(season.dat)
+dim(season.dat)
+
+season.dat$season[season.dat$season == "frost"] <- "fall"
+
+season.dat$season <- as.factor(season.dat$season)
+season.filter.dat <- data.frame()
+
+localities <- levels(as.factor(season.dat$locality))
+seasons <- c("fall", "spring")
+
+## getting samples collected at least once during spring and winter
+
+for(loc in localities){
+    dft <- season.dat[season.dat$locality == loc, ]
+    if(all(seasons %in% unique(dft$season))){
+        season.filter.dat <- rbind(season.filter.dat, dft)
+    }
+}
+
+dim(season.filter.dat)
+dim(na.omit(season.filter.dat))
+str(season.filter.dat)
+
+
+mat1 <- season.filter.dat[ , c(3, 6, 5, 9, 10, 14, 12, 15)]
+names(mat1)
+str(mat1)
+dim(mat1)
+
+mat1 <- mat1[!is.na(mat1$nEff), ]
+dim(mat1)
+mat1 <- mat1[mat1$nEff >= 28, ] ## Applying a Neff filter of 28
+dim(mat1)
+mat1 <- mat1[ , -8]
+str(mat1)
+
+## Changing name of cities
+
+mat1$city <- as.factor(mat1$city)
+levels(mat1$city)
+
+levels(mat1$city) <- gsub("valday", "Valday", levels(mat1$city))
+levels(mat1$city) <- gsub("Odesa", "Odessa", levels(mat1$city))
+levels(mat1$city) <- gsub("Charlotttesville", "Charlottesville", levels(mat1$city))
+levels(mat1$city) <- gsub("Yesiloz TR13", "Yesiloz", levels(mat1$city))
+levels(mat1$city) <- gsub("Yesiloz TR14", "Yesiloz", levels(mat1$city))
+levels(mat1$city) <- gsub("Yesiloz TR15", "Yesiloz", levels(mat1$city))
+levels(mat1$city) <- gsub("Yesiloz TR16", "Yesiloz", levels(mat1$city))
+levels(mat1$city) <- gsub("Yesiloz TR17", "Yesiloz", levels(mat1$city))
+levels(mat1$city) <- gsub("Yesiloz TR18", "Yesiloz", levels(mat1$city))
+levels(mat1$city) <- gsub("Karensminde Orchard", "Karensminde", levels(mat1$city))
+levels(mat1$city) <- gsub("Slankamen. Vinogradi", "Slankamen-Vinogradi", levels(mat1$city))
+levels(mat1$city) <- gsub("Chalet \xe0 Gobet", "Chalet-A-Gobet", levels(mat1$city))
+
+levels(mat1$city)
+levels(mat1$city)[c(9, 10, 11, 12, 13, 14)] <- "Chornobyl"
+levels(mat1$city)
+levels(mat1$city)[22] <- "Kyiv"
+levels(mat1$city)
+levels(mat1$city)[29] <- "Slankamenacki-Vinogradi"
+levels(mat1$city)
+
+
+dim(mat1)
+str(mat1)
+
+mat1 <- mat1[!mat1$country == "United Kingdom", ] ## The united kingdom only has 4 pooled samples, so I removed it from the analyses
+
+mat2 <- reshape(mat1, idvar = c("sampleId", "city", "country", "season", "continent"), timevar = "variant.id", direction = "wide")
+mat2[1:6, 1:10]
+dim(mat2)
+
+
+mat2$city <- as.character(mat2$city)
+mat2$season <- as.character(mat2$season)
+
+mat2 <- mat2[mat2$city != "Homestead", ]
+mat2 <- mat2[mat2$city != "Athens", ]
+mat2 <- mat2[mat2$city != "Sudbury", ]
+mat2 <- mat2[mat2$city != "Brzezina", ]
+mat2 <- mat2[mat2$city != "Kalna", ]
+mat2 <- mat2[mat2$city != "Slankamenacki-Vinogradi", ]
+mat2 <- mat2[mat2$city != "Topeka", ]
+mat2 <- mat2[mat2$city != "Chalet-A-Gobet", ]
+
+usa <- c("Lancaster", "Ithaca", "Cross Plains", "Benton Harbor", "Linvilla", "State College", "Tuolumne", "Esparto", "Charlottesville")
+
+for(i in usa){
+    mat2$country[mat2$city == i] <- i
+}
+
+mat2$country <- as.factor(mat2$country)
+
+levels(mat2$country)
+levels(mat2$country)[c(2, 4)] <- "MI-WI"
+levels(mat2$country)
+levels(mat2$country)[c(9, 10)] <- "NY-MA"
+levels(mat2$country)
+levels(mat2$country)[c(10, 13)] <- "PA"
+levels(mat2$country)
+
+
+mat3 <- as.data.frame(getGenotypeAlleles(genofile)) ## extracting genotypes from the GDS file
+mat3[1:5, 1:5]
+
+for(i in 1:ncol(mat3)){
+    mat3[ , i] <- gsub("/", "", mat3[, i])
+}
+
+mat3[1:5, 1:5]
+mat3$ind <- rownames(mat3)
+dim(mat3)
+mat3[1:5, 1610:1614]
+
+mat4 <- mat3[mat3$ind %in% mat2$sampleId, ]
+dim(mat4)
+mat4[1:5, 1600:1614]
+
+same_ord <- mat2[ , c(1, 2, 3, 4)]
+colnames(same_ord) <- c("ind", "city", "country", "season")
+mat5 <- merge(mat4, same_ord, by = "ind")
+dim(mat5)
+mat5[1:5, 1:5]
+rownames(mat5) <- mat5[ , 1]
+dim(mat5)
+mat5[1:5, 1610:1617]
+
+mat6 <- mat5[ , -c(1, 1615, 1616, 1617)]
+dim(mat6)
+mat6[1:5, 1:5]
+mat6[1:5, 1605:1613]
+
+fly_gen <- df2genind(mat6, ploidy = 2, ind.names = rownames(mat6), pop = mat5$country, sep = "")
+fly_gen
+fly_gen$tab[1:5, 1:5]
+summary(fly_gen$pop)
+
+indmiss_fly <- propTyped(fly_gen, by = "ind")
+indmiss_fly[which(indmiss_fly < 0.80)]
+
+barplot(indmiss_fly, ylim = c(0, 1), ylab = "Complete genotypes (proportion)", xlab = "", las = 2, cex.names = 0.4)
+mtext("Genotypes", side = 1, line = 3.7)
+
+fly_gen <- missingno(fly_gen, type = "geno", cutoff = 0.20) ## This is the genind file that I will use for all the analyses
+fly_gen
+
+## quality control begins here
+
+mlg(fly_gen) ## keep only polymorphic loci
+isPoly(fly_gen) %>% summary
+poly_loci <- names(which(isPoly(fly_gen) == TRUE))
+fly_gen2 <- fly_gen[loc = poly_loci]
+isPoly(fly_gen2) %>% summary
+
+fly_gen2$loc.n.all <- fly_gen2$loc.n.all[which(fly_gen2$loc.n.all == 2)]
+
+n <- names(which(nAll(fly_gen2) == 2))
+fly_gen2 <- fly_gen2[loc = n]
+fly_gen2
+
+indmiss_fly2 <- propTyped(fly_gen2, by = "ind")
+
+barplot(indmiss_fly2, ylim = c(0, 1), ylab = "Complete genotypes (proportion)", xlab = "", las = 2, cex.names = 0.4)
+mtext("Genotypes", side = 1, line = 3.7)
+
+locmiss_fly <- propTyped(fly_gen2, by = "loc")
+locmiss_fly[which(locmiss_fly < 0.80)] ## print loci with < 80% complete genotypes
+
+barplot(locmiss_fly, ylim = c(0, 1), ylab = "Complete genotypes (proportion)", xlab = "", las = 2, cex.names = 0.4)
+mtext("Locus", side = 1, line = 3)
+
+fly_gen3 <- missingno(fly_gen2, type = "loci", cutoff = 0.20)
+fly_gen3
+locmiss_fly3 <- propTyped(fly_gen3, by = "loc")
+locmiss_fly3[which(locmiss_fly3 < 0.80)]
+fly_gen3$tab[1:5, 1:5]
+min(ploidy(fly_gen3))
+max(ploidy(fly_gen3))
+summary(fly_gen3$pop)
+
+mlg(fly_gen3)
+isPoly(fly_gen3) %>% summary
+poly_loci3 <- names(which(isPoly(fly_gen3) == TRUE))
+fly_gen3 <- fly_gen3[loc = poly_loci3]
+isPoly(fly_gen3) %>% summary
+
+barplot(locmiss_fly3, ylim = c(0, 1), ylab = "Complete genotypes (proportion)", xlab = "", las = 2, cex.names = 0.4)
+mtext("Locus", side = 1, line = 3)
+
+
+## computing basic stats
+
+basic_fly <- basic.stats(fly_gen3, diploid = TRUE)
+
+## testing for H-W equilibrium
+
+## Chi-squared test: p-value
+
+HWE.test <- data.frame(sapply(seppop(fly_gen3), 
+                              function(ls) pegas::hw.test(ls, B = 0)[ , 3]))
+
+
+HWE.test.chisq <- t(data.matrix(HWE.test))
+HWE.test.chisq[1:5, 1:5]
+
+
+## Monte Carlo: p-value
+
+HWE.test <- data.frame(sapply(seppop(fly_gen3), 
+                              function(ls) pegas::hw.test(ls, B = 1000)[ , 4]))
+
+HWE.test.MC <- t(data.matrix(HWE.test))
+HWE.test.MC[1:5, 1:5]
+
+
+alpha <- 0.05
+
+Prop.loci.out.of.HWE <- data.frame(Chisq = apply(HWE.test.chisq < alpha, 2, mean), MC = apply(HWE.test.MC < alpha, 2, mean))
+
+Prop.loci.out.of.HWE[1:10, ]
+
+
+## "False discovery rate" correction for the number of tests. Here I use the function ‘p.adjust’ with the argument method = "fdr" to adjust the p-values from the previous tests
+
+Chisq.fdr <- matrix(p.adjust(HWE.test.chisq, method = "fdr"), 
+                    nrow = nrow(HWE.test.chisq))
+
+MC.fdr <- matrix(p.adjust(HWE.test.MC, method = "fdr"), 
+                    nrow = nrow(HWE.test.MC))
+
+Prop.loci.out.of.HWE <- data.frame(Chisq = apply(HWE.test.chisq<alpha, 2, mean), 
+           MC = apply(HWE.test.MC<alpha, 2, mean),
+           Chisq.fdr = apply(Chisq.fdr<alpha, 2, mean),
+           MC.fdr = apply(MC.fdr<alpha, 2, mean))
+
+head(Prop.loci.out.of.HWE)
+
+
+loci <- data.frame()
+
+idx <- 1
+
+for(i in 1:nrow(Prop.loci.out.of.HWE)){
+    fdr <- Prop.loci.out.of.HWE[i , ]
+    if(fdr$MC.fdr > 0.5){
+        loci <- rbind(fdr, loci)
+    }
+
+}
+
+loci ## none of the loci are consistenly out of HWE. Some of them are out of HWE in less than 50% of the populations.
+dim(loci)
+
+
+## check for linkage disequilibrium (LD)
+
+LD <- as.genclone(fly_gen3)
+LD
+
+quartz()
+LD.general <- poppr::ia(LD, sample = 500)
+LD.general
+
+
+
+```
+
+<br><br>
+<b>
+<font size="5"> Computing pairwise Fst test </font>
+</b>
+<br><br>
+
+```{r}
+
+fly_fst <- genet.dist(fly_gen3, method = "WC84") %>% round(digits = 3)
+fly_fst[[1:10, 1:10]]
+
+fst.mat <- as.matrix(fly_fst)
+fst.mat[fst.mat < 0] <- 0
+fst.mat[1:10, 1:10]
+
+tab <- gi2gl(fly_gen3, parallel = FALSE, verbose = NULL) ## converting genind object to genlight object
+
+pval_fst <- gl.fst.pop(tab, nboots = 1000, percent = 95, nclusters = 1, verbose = NULL)
+
+fst <- as.matrix(as.dist(pval_fst$Fsts))
+fst[fst < 0] <- 0
+fst
+
+
+```
+
+<br><br>
+
+```{r}
+
+## png("heatmap.png", width = 7, height = 7, units = "in", res = 300)
+
+## pdf("heatmap.pdf")
+
+my_palette <- colorRampPalette(c("blue", "red"))(n = 100)
+
+heatmap.2(fst.mat, density.info = "none", trace = "none", scale = "none", cexRow = 0.7, cexCol = 0.7, key.title = "Fst", srtCol = 45, srtRow = 35, margins = c(8.5, 5), col = my_palette, symbreaks = TRUE)
+
+## dev.off()
+
+
+```
+<p align = "justify">
+<font size="4"> **Figure 1.** Heatmap depicting genetic differentiation among populations of *D. melanogaster* based on pairwise Fst values. In some cases, samples from adjacent localities were combined to avoid low sample sizes. Abbreviations are as follows: PA = Pennsylvania; MI-WI = Michigan and Wisconsin; NY-MA = New York and Massachusetts. </font>
+</p>
+<br><br>
+
+
+<b>
+<font size="5"> Genetic admixture proportions </font>
+</b>
+<br><br>
+
+
+```{r}
+
+##seqSetFilter(genofile, variant.id = rownames(snps), sample.id = rownames(indi))
+##seqGDS2VCF(genofile, "my_vcf.gz", verbose = TRUE)
+##outest <- read.vcfR("my_vcf.gz")
+##dataout <- vcfR2genind(outest)
+
+
+## exploring the data once again (do it all the time!)
+
+fly_gen3
+fly_gen3$tab[1:5, 1:5]
+nLoc(fly_gen3) # number of loci
+nPop(fly_gen3) # number of sites
+nInd(fly_gen3) # number of individuals
+summary(fly_gen3$pop) # sample size
+min(ploidy(fly_gen3))
+max(ploidy(fly_gen3))
+
+
+## gl2geno(tab, outfile = "gl_geno", outpath = getwd(), verbose = NULL) ## Converting genlight object to geno object
+
+## Run snmf algorithm
+
+#snmf1 <- snmf("gl_geno.geno",
+#             K = 1:10, # number of K ancestral populations to run
+#             repetitions = 50, # 50 repetitions for each K
+#             entropy = TRUE, # calculate cross-entropy
+#             project = "new")
+
+
+snmf1 <- load.snmfProject("gl_geno.snmfProject")
+
+
+## extract Q-matrix for the best run
+
+plot(snmf1, col = "blue", cex = 1.5, pch = 19, las = 1)
+
+
+## extract the cross-entropy of all runs where K = 9
+
+ce <- cross.entropy(snmf1, K = 9)
+ce
+
+
+## find the run with the lowest cross-entropy
+
+lowest.ce <- which.min(ce)
+lowest.ce
+
+
+## extract Q-matrix for the best run
+
+qmatrix <- as.data.frame(Q(snmf1, K = 9, run = lowest.ce))
+head(qmatrix)
+
+## changing order of levels
+
+pops <- fly_gen3$pop
+levels(pops)
+levels(pops)[3] <- "Charlott."
+
+
+qmplot <- cbind(qmatrix, pops)
+qmplot$pops <- factor(qmplot$pops, levels = c("Esparto", "Tuolumne", "MI-WI", "Charlott.", "PA", "NY-MA", "Spain", "France", "Germany", "Austria", "Denmark", "Finland", "Ukraine", "Russia", "Turkey"))
+qmplot <- qmplot[order(qmplot$pops), ]
+
+pops <- qmplot$pops
+
+```
+
+
+
+
+```{r}
+
+
+## png("admixture.png", width = 7, height = 7, units = "in", res = 300)
+
+## pdf("admixture.pdf")
+
+layout(matrix(c(0, 1, 1, 0,
+                0, 1, 1, 0,
+                2, 2, 2, 2,
+                2, 2, 2, 2), nrow = 4, ncol = 4, byrow = TRUE))
+
+par(mar = c(4, 4, 1, 0))
+plot(snmf1, col = "blue", cex = 1.5, pch = 19, las = 1, cex.lab = 1.3)
+Arrows(x = 9, y = 0.295, x1 = 9, y1 = 0.305, col = "red", arr.type = "triangle", code = 1, lwd = 1.5, arr.length = 0.2)
+mtext("(a)", side = 2, at = 0.342, line = 2.8, font = 2, family = "serif", las = 1)
+
+par(mar = c(5, 4.5, 1, 0))
+barplot(t(qmplot[1:9]), col = RColorBrewer::brewer.pal(9,"Paired"), border = NA, space = 0, xlab = "", xaxt = "n",  ylab = "Admixture proportion", las = 1, cex.lab = 1.4)
+
+## adding population labels to the axis:
+
+names <- unique(as.character(pops))
+
+medians <- c()
+
+for(i in 1:length(pops)){
+    
+    axis(1, at = median(which(pops == pops[i])), labels = "")
+    medians <- c(medians, median(which(pops == pops[i])))
+}
+
+medians[1:10]
+
+text(x = as.numeric(unique(as.character(medians))), y = par("usr")[3] - 0.05, labels = names, xpd = NA, srt = 35, cex = 1, adj = 1.2)
+mtext("Individuals", side = 1, line = 4)
+mtext("(b)", side = 2, at = 1.1, line = 2.4, font = 2, family = "serif", las = 1)
+
+## dev.off()
+
+```
+<p align = "justify">
+<font size="4"> **Figure 2.** Population structure analysis based on individual ancestry coefficients for a number of ancestral populations. **(a)** Cross-entropy values for each snmf run with k ranging between k = 1 and k = 10. The red arrow indicates the most likely value of k. **(b)** Admixture proportion across populations of *D. melanogaster*. Colors indicate genetic clusters. </font>
+</p>
+<br><br>
+
+
+```{r}
+
+## label column names of qmatrix
+
+ncol(qmatrix)
+cluster_names = c()
+
+for(i in 1:ncol(qmatrix)){
+  cluster_names[i] = paste("Cluster", i)
+}
+
+cluster_names
+colnames(qmatrix) <- cluster_names
+head(qmatrix)
+dim(qmatrix)
+
+
+## add individual IDs
+
+qmatrix$Ind <- indNames(fly_gen3)
+
+## add site IDs
+
+qmatrix$Site <- fly_gen3$pop
+head(qmatrix)
+
+## calculate mean admixture proportions for each site
+
+clusters <- grep("Cluster", names(qmatrix)) ## indexes of cluster columns
+avg_admix <- aggregate(qmatrix[, clusters], list(qmatrix$Site, qmatrix$Ind), mean)
+colnames(avg_admix)[1:2] <- c("country", "Ind")
+head(avg_admix)
+str(avg_admix)
+
+
+
+## import csv file containing coordinates
+
+coor <- read.csv("coor.csv")
+str(coor)
+head(coor)
+
+
+admix <- merge(coor, avg_admix, by = "country")
+str(admix)
+head(admix)
+colnames(admix)[c(5, 6, 7, 8, 9, 10, 11, 12, 13)] <- c("cluster1", "cluster2", "cluster3", "cluster4", "cluster5", "cluster6", "cluster7", "cluster8", "cluster9")
+
+pies <- admix[ , c(1:3, 5:13)]
+
+meanpies <- aggregate(pies[2:12], by = list(pies$country), mean)
+
+```
+
+
+<br><br>
+<b>
+<font size="5"> Plotting admixture proportions on a map </font>
+</b>
+<br><br>
+
+```{r}
+
+
+## Plotting map
+
+quartz()
+
+map("world", fill = TRUE, col = "gray", xlim = c(-130, 50), ylim = c(-20, 70), border = 0, mar = c(0, 5.5, 0, 0))
+
+map.axes(cex.axis = 0.7, las = 1)
+mtext(side = 1, line = 2, "Longitude")
+mtext(side = 2, line = 2, "Latitude")
+
+
+## Adding pie charts to the map
+
+for(i in 1:nrow(meanpies)){
+    add.pie(z = c(meanpies$cluster1[i], meanpies$cluster2[i], meanpies$cluster3[i], meanpies$cluster4[i], meanpies$cluster5[i], meanpies$cluster6[i], meanpies$cluster7[i], meanpies$cluster8[i], meanpies$cluster9[i]), x = meanpies$long[i], y = meanpies$lat[i], radius = 2, col = RColorBrewer::brewer.pal(9,"Paired"), labels = "", border = FALSE)
+    
+}
+
+
+## png("map.png", width = 7, height = 7, units = "in", res = 300)
+
+## pdf("map.pdf")
+
+
+##map("world", fill = FALSE, col = "white", xlim = c(-130, 50), ylim = c(-20, 70), boundary = FALSE, mar = c(0, 5.5, 0, 0))
+
+##world <- ne_countries(scale = "medium", returnclass = "sf")
+
+##ggplot(data = world) + geom_sf() + coord_sf(xlim = c(-130, 67), ylim = c(-20, 82), expand = FALSE) +
+##    xlab("Longitude") + ylab("Latitude") + annotation_north_arrow(location = "bl", which_north = "true", pad_x = unit(0, "in"), pad_y = unit(0.1, "in"), height = unit(0.4, "in"), width = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + theme(panel.grid.major = element_line(color = gray(.5), linetype = "dashed", linewidth = 0.5), panel.background = element_rect(fill = "#cff1ff"))
+
+## Adding pie charts to the map
+
+##for(i in 1:nrow(meanpies)){
+##    add.pie(z = c(meanpies$cluster1[i], meanpies$cluster2[i], meanpies$cluster3[i], meanpies$cluster4[i], meanpies$cluster5[i], meanpies$cluster6[i], meanpies$cluster7[i], meanpies$cluster8[i], meanpies$cluster9[i]), x = meanpies$long[i], y = meanpies$lat[i], radius = 2, col = RColorBrewer::brewer.pal(9,"Paired"), labels = "", border = FALSE)
+    
+##}
+
+
+## dev.off()
+
+```
+<p align = "justify">
+<font size="4"> **Figure 3.** Mean admixture proportions across populations of *D. melanogaster* surveyed in America and Europe. Colors in the pie charts represent genetic clusters. </font>
+</p>
+<br><br>
+
+
+
+
+<br><br>
+<b>
+<font size="5"> Isolation by Environment and Isolation by Distance analyses </font>
+</b>
+<br><br>
+
+
+```{r}
+
+unique(fly_gen3$pop)
+
+obj <- matrix(NA, nrow = length(unique(fly_gen3$pop)), ncol = 3, byrow = TRUE)
+
+idx <- 1
+
+for(i in unique(fly_gen3$pop)){
+    long <- admix$long[admix$country == i][1]
+    lat <- admix$lat[admix$country == i][1]
+    country <- i
+    obj[idx, ] <- c(country, long, lat)
+    idx = idx + 1
+
+}
+
+obj
+
+obj <- as.data.frame(obj)
+colnames(obj) <- c("country", "x", "y")
+obj$x <- as.numeric(obj$x)
+obj$y <- as.numeric(obj$y)
+rownames(obj) <- obj[ , 1]
+obj <- obj[ , c(2, 3)]
+str(obj)
+
+fly_gen3@other <- obj[ , c(1, 2)]
+fly_gen3
+
+## genetic distance
+
+GD.pop.PairwiseFst.hierfstat <- as.dist(hierfstat::pairwise.neifst(hierfstat::genind2hierfstat(fly_gen3)))
+
+## geographic distance
+
+Dgeo <- round(dist(fly_gen3$other), 3)
+
+## making sure the order of rows and columns are the same in all of the matrices
+
+ord.gen <- as.matrix(GD.pop.PairwiseFst.hierfstat)
+ord.geo <- as.matrix(Dgeo)
+
+ord.geo
+ord.gen <- ord.gen[rownames(ord.geo), colnames(ord.geo)]
+ord.gen
+
+fst.dist <- round(as.dist(ord.gen), 3)
+fst.dist
+Dgeo
+
+
+NPP_file <- list.files("/Users/dpadil10/Dropbox (ASU)/npp-geotiff", full.names = TRUE)
+NPP_file
+
+NPP.data <- stack(NPP_file)
+
+NPP.data.ext.dis <- extract(NPP.data, obj)
+head(NPP.data.ext.dis)
+
+rownames(NPP.data.ext.dis) <- rownames(obj)
+
+DNPP <- round(dist(log(NPP.data.ext.dis)), 3)
+DNPP
+
+
+## partial mantel test
+
+part.mant <- mantel.partial(fst.dist, DNPP, Dgeo, method = "pearson", permutations = 1000)
+part.mant
+
+part.mant2 <- mantel.partial(fst.dist, Dgeo, DNPP, method = "pearson", permutations = 1000)
+part.mant2
+
+## mantel test
+
+ibd <- mantel.randtest(fst.dist, Dgeo)
+ibd
+
+quartz()
+plot(ibd, las = 1, main = "") ## isolation by distance is clearly significant
+
+mantCor <- mgram(fst.dist, Dgeo, nperm = 1000)
+mantCor
+
+mantCor2 <- mgram(fst.dist, DNPP, nperm = 1000)
+mantCor2
+
+plot(mantCor, las = 1)
+plot(mantCor2, las = 1)
+
+
+## filled dots indicate significant correlations. The Mantel correlogram shows that genotypes are relatively similar at short distance, while this similarity decreases with distance. The negative correlations indicate genetic differenciation between some populations
+
+
+dens <- MASS::kde2d(as.vector(Dgeo), as.vector(fst.dist), n = 300)
+myPal <- colorRampPalette(c("white", "blue", "gold", "orange", "red"))
+plot(as.vector(Dgeo), as.vector(fst.dist), pch = 20, xlab = "Geographic Distance", ylab = "Genetic Distance", las = 1)
+image(dens, col = transp(myPal(300), 0.7), add = TRUE)
+abline(lm(as.vector(fst.dist) ~ as.vector(Dgeo)), lwd = 2)
+lines(loess.smooth(as.vector(Dgeo), as.vector(fst.dist)), col = "red", lwd = 2)
+
+
+dens2 <- MASS::kde2d(as.vector(DNPP), as.vector(fst.dist), n = 300)
+myPal2 <- colorRampPalette(c("white", "blue", "gold", "orange", "red"))
+plot(as.vector(DNPP), as.vector(fst.dist), pch = 20, xlab = "NPP Distance", ylab = "Genetic Distance", las = 1)
+image(dens2, col = transp(myPal2(300), 0.7), add = TRUE)
+abline(lm(as.vector(fst.dist) ~ as.vector(DNPP)), lwd = 2)
+lines(loess.smooth(as.vector(DNPP), as.vector(fst.dist)), col = "red", lwd = 2)
+
+
+
+```
+
+
+```{r}
+
+
+## png("distance.png", width = 7, height = 7, units = "in", res = 300)
+
+## pdf("distance.pdf")
+
+layout(matrix(c(1, 1, 2, 2,
+                1, 1, 2, 2,
+                3, 3, 4, 4,
+                3, 3, 4, 4), nrow = 4, ncol = 4, byrow = TRUE))
+
+
+par(mar = c(4.2, 4.1, 1, 1))
+plot(as.vector(Dgeo), as.vector(fst.dist), pch = 20, xlab = "Geographic Distance", ylab = "Genetic Distance", las = 1, cex.lab = 1.4)
+image(dens, col = transp(myPal(300), 0.7), add = TRUE)
+abline(lm(as.vector(fst.dist) ~ as.vector(Dgeo)), lwd = 2)
+lines(loess.smooth(as.vector(Dgeo), as.vector(fst.dist)), col = "red", lwd = 2)
+mtext("(a)", side = 2, at = 0.07, line = 2.6, font = 2, family = "serif", las = 1)
+
+par(mar = c(4, 4.1, 1, 1))
+plot(as.vector(DNPP), as.vector(fst.dist), pch = 20, xlab = "NPP Distance", ylab = "Genetic Distance", las = 1, cex.lab = 1.4)
+image(dens2, col = transp(myPal2(300), 0.7), add = TRUE)
+abline(lm(as.vector(fst.dist) ~ as.vector(DNPP)), lwd = 2)
+lines(loess.smooth(as.vector(DNPP), as.vector(fst.dist)), col = "red", lwd = 2)
+mtext("(b)", side = 2, at = 0.07, line = 3.1, font = 2, family = "serif", las = 1)
+
+par(mar = c(4.2, 4.1, 1, 1))
+plot(mantCor, las = 1, cex.axis = 1, cex.lab = 1.6, xlab = "Geographic Distance")
+mtext("(c)", side = 2, at = 0.7, line = 2.6, font = 2, family = "serif", las = 1)
+
+par(mar = c(4, 4.1, 1, 1))
+plot(mantCor2, las = 1, cex.axis = 1, cex.lab = 1.6, ylim = c(-0.4, 0.6), xlab = "NPP Distance")
+mtext("(d)", side = 2, at = 0.65, line = 3.1, font = 2, family = "serif", las = 1)
+
+## dev.off()
+
+```
+<p align = "justify">
+<font size="4"> **Figure 6.** Patterns of isolation by distance and isolation by environment according to Partial Mantel tests and Correlograms. **(a-b)** Geographic and net primary production distances as a function of genetic distance. Colors represent estimated probability densities and the red line a smoothed local mean. **(c-d)** Mantel correlation at different distance classes as a function of geographic and net primary production distances. Filled dots indicate significant correlations. </font>
+</p>
+<br><br>
+
+
+
+<b>
+<font size="5"> Analysis of seasonlity and adaptation test </font>
+</b>
+<br><br>
+
+
+```{r}
+
+## extracting environmental variables from WorldClim and other sources
+
+
+mat_adap <- admix[ , c(1, 2, 3, 4)]
+head(mat_adap)
+
+mat_adap$season <- rep(NA, nrow(mat_adap))
+
+idx <- 1
+for(i in mat_adap$Ind){
+    obj <- unique(afis$season[afis$sampleId == i])
+    mat_adap[idx, 5] <- obj
+    idx = idx + 1
+}
+
+head(mat_adap)
+
+## extracting NPP
+
+
+NPP_file <- list.files("/Users/dpadil10/Dropbox (ASU)/npp-geotiff", full.names = TRUE)
+NPP_file
+
+NPP.data <- stack(NPP_file)
+
+prod <- mat_adap[ , c(2, 3)] ## loading the dataframe with the coordinates
+head(prod)
+
+NPP.data.ext <- extract(NPP.data, prod)
+head(NPP.data.ext)
+
+
+NPP.data.ext <- as.data.frame(NPP.data.ext)
+colnames(NPP.data.ext) <- "NPP"
+head(NPP.data.ext)
+##is.na(NPP.data.ext)
+
+
+## extracting BIO15 precipitation seasonality (coefficient of variation), BIO4 temperature seasonality (standard deviation * 100)
+
+files <- list.files("/Users/dpadil10/Dropbox (ASU)/Padilla et al/wc2.1_30s_bio", full.names = TRUE)
+files
+
+pre_sea <- stack(files[4])
+tem_sea <- stack(files[10])
+
+coord <- mat_adap[ , c(2, 3)]
+head(coord)
+
+prec.season <- extract(pre_sea, coord)
+temp.season <- extract(tem_sea, coord)
+
+variables <- cbind(prec.season, temp.season, log(NPP.data.ext))
+head(variables)
+colnames(variables) <- c("precseason", "tempseason", "logNPP")
+head(variables)
+
+env <- cbind(mat_adap, variables)
+head(env)
+
+
+
+## confirm that genotypes and environmental data are in the same order
+
+x <- tab(fly_gen3, NA.method = "mean")
+
+snppca <- as.data.frame(x)
+snppca$Ind <- rownames(x)
+snppca$country <- fly_gen3$pop
+dim(snppca)
+
+gen <- snppca[order(snppca$country), ]
+
+merging <- merge(gen, env, by = "Ind")
+merging[1:5, 1:5]
+rownames(merging) <- merging[ , 1]
+dim(merging)
+merging[1:5, 3101:3109]
+
+merging <- merging[ , -c(1, 3102:3109)]
+dim(merging)
+merging[1:5, 3090:3100]
+
+
+genomic <- merging
+
+env$Ind <- as.factor(env$Ind)
+env$Ind <- as.character(levels(env$Ind))
+dim(snppca)
+snppca[1:5, 1:5]
+snppca[1:5, 3090:3102]
+
+snppca <- snppca[ , -c(3101, 3102)]
+dim(snppca)
+snppca[1:5, 3090:3100]
+
+
+identical(rownames(genomic), env[ , 4]) ## genotypes and environmental data are in the same order
+
+## How many seasons per country are there?
+
+table(data.frame(season = env$season, country = env$country))
+
+xtable(table(data.frame(season = env$season, country = env$country)), caption = "caption here")
+
+
+
+```
+
+
+```{r}
+
+names(env)
+
+
+## CCA
+
+gen.cca <- cca(genomic ~ season*country, env)
+gen.cca
+anova(gen.cca)
+env$country <- as.factor(env$country)
+levels(env$country)
+cols <- env$country
+cols <- as.numeric(env$country)
+
+
+## png("cca.png", width = 7, height = 7, units = "in", res = 300)
+
+## pdf("cca.pdf")
+
+plot(gen.cca, display = "sites", type = "n", las = 1)
+with(gen.cca, points(gen.cca, display = "sites", pch = 21, bg = cols, col = cols))
+##with(env[3], ordiellipse(gen.cca, env$country, kind = "se", conf = 0.95, col = "gray"))
+##with(env[3], ordihull(gen.cca, env$country, col = palette, lty = 2))
+with(env[3], ordispider(gen.cca, env$country, col = unique(cols), label = TRUE))
+##legend("topright", legend = levels(env$country), pch = 19, col = unique(cols), bty = "n", cex = 0.8)
+
+## dev.off()
+
+
+```
+<p align = "justify">
+<font size="4"> **Figure 4.** Constrained correspondence analysis depicting the spatial distribution of populations based on the effect of season and locality. "Spider" diagrams connect the pools to the population centroid. </font>
+</p>
+<br><br>
+
+
+
+```{r}
+
+## Detecting selection
+
+head(env)
+
+
+env.pca <- rda(env[ , c(2, 3, 6, 7, 8)], scale = T)
+summary(env.pca)$cont
+
+
+quartz()
+par(las = 1)
+screeplot(env.pca, main = " ")
+
+round(scores(env.pca, choices = 1:5, display = "species", scaling = 0), digits = 3)
+
+pred.PC1 <- scores(env.pca, choices = 1, display = "sites", scaling = 0)
+
+
+par(las = 1)
+screeplot(env.pca, bstick = TRUE, type = "lines", las = 1, main = "")
+
+## genomic data
+
+gen.pca <- rda(snppca, scale = T)
+
+par(las = 1)
+screeplot(gen.pca, main = " ", bstick = TRUE, type = "lines")
+
+## for the genomic data, I can see that two of the PCs have eigenvalues greater than random (greater than the broken stick values in red). This effectively means that K = 2 for the dataset, based on a PCA assessment
+
+K <- 9
+
+fly.lfmm1 <- lfmm_ridge(Y = snppca, X = pred.PC1, K = K) ## change K as you see fit
+
+fly.pv1 <- lfmm_test(Y = snppca, X = pred.PC1, lfmm = fly.lfmm1, calibrate = "gif")
+
+names(fly.pv1) # this object includes raw z-scores and p-values, as well as GIF-calibrated scores and p-values
+
+
+## let’s look at the genomic inflation factor (GIF)
+
+fly.pv1$gif
+
+## an appropriately calibrated set of tests will have a GIF of around 1
+
+## let’s look at how application of the GIF to the p-values impacts the p-value distribution
+
+
+quartz()
+layout(matrix(c(0, 0, 0, 0,
+                1, 1, 2, 2,
+                1, 1, 2, 2,
+                0, 0, 0, 0), nrow = 4, ncol = 4, byrow = TRUE))
+
+par(mar = c(5, 5, 0.2, 1), las = 1)
+
+hist(fly.pv1$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "", ylim = c(0, 350))
+legend("top", "K = 9", bty = "n")
+hist(fly.pv1$pvalue[ , 1], xlab = "Unadjusted p-values", las = 1, main = "", ylim = c(0, 400))
+legend("top", "K = 9", bty = "n")
+
+
+## convert the adjusted p-values to q-values. q-values provide a measure of each SNP’s significance, automatically taking into account the fact that thousands are simultaneously being tested. I can then use an FDR threshold to control the number of false positive detections (given that the p-value distribution is “well-behaved”)
+
+fly.qv1 <- qvalue(fly.pv1$calibrated.pvalue)$qvalues
+length(which(fly.qv1 < 0.05)) ## how many SNPs have an FDR < 5%?
+
+
+## using K = 9, the default GIF correction, and an FDR threshold of 0.05, I detected 2 candidate SNPs under selection in response to the PC1 environmental predictor
+
+(fly.FDR <- colnames(snppca)[which(fly.qv1 < 0.05)]) ## identify which SNPs these are
+
+
+## visualizing results
+
+
+## Manhattan plot with causal loci
+ 
+qvalues <- fly.qv1
+
+row <- as.data.frame(qvalues)
+str(row)
+
+rownames(row) <- 1:3100
+
+(causal.set <- as.numeric(rownames(row)[which(row < 0.05)]))
+(fly.FDR <- gsub("[^0-9]", "", fly.FDR))
+
+
+quartz()
+plot(-log10(qvalues), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1)
+points(causal.set, -log10(qvalues)[causal.set], pch = 19, col = alpha("red", 0.3))
+text(causal.set, (-log10(qvalues)[causal.set] - 0.05), fly.FDR, col = "red")
+
+
+
+```
+
+
+```{r}
+
+
+quartz()
+
+## png("adaptation.png", width = 7, height = 7, units = "in", res = 300)
+
+## pdf("adaptation.pdf")
+
+layout(matrix(c(0, 1, 1, 0,
+                0, 1, 1, 0,
+                0, 2, 2, 0,
+                0, 2, 2, 0), nrow = 4, ncol = 4, byrow = TRUE))
+
+par(las = 1, mar = c(4, 4, 1, 0.6))
+hist(fly.pv1$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "", ylim = c(0, 350))
+legend("top", paste("K = 9\nGIF = ", round(fly.pv1$gif, 2)), bty = "n")
+mtext("(a)", side = 2, at = 365, line = 2.5, las = 1, font = 2, family = "serif")
+
+plot(-log10(qvalues), pch = 19, cex = 1, bg = "gray", col = alpha("gray", 0.6), xlab = "SNP", las = 1)
+points(causal.set, -log10(qvalues)[causal.set], pch = 19, col = "orange")
+text(causal.set, (-log10(qvalues)[causal.set] - 0.1), fly.FDR, col = "orange")
+mtext("(b)", side = 2, at = 1.4, line = 2.5, las = 1, font = 2, family = "serif")
+
+## dev.off()
+
+```
+<p align = "justify">
+<font size="4"> **Figure 5.** Genotype-environment association test based on a latent factor mixed model with ridge penalty. **(a)** Distribution of adjusted p-values using the default genomic inflation factor. **(b)** Manhattan plot of loci (SNPs) potentially affected by the PC1 predictor variable. Loci highlighted in red were considered to be under selection according to a False Discovery Rate of 0.05. </font>
+</p>
+<br><br>
