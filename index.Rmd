@@ -1064,7 +1064,7 @@ with(env[3], ordispider(gen.cca, env$country, col = unique(cols), label = TRUE))
 
 ```
 <p align = "justify">
-<font size="4"> **Figure 4.** Constrained correspondence analysis depicting the spatial distribution of populations based on the effect of seasons. The polygons drawn represent the confidence regions for the locations of group centroids. </font>
+<font size="4"> **Figure 4.** Constrained correspondence analysis depicting the spatial distribution of populations based on the effect of season and locality. "Spider" diagrams connect the pools to the population centroid. </font>
 </p>
 <br><br>
 
