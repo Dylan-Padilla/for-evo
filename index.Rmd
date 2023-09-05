@@ -5,18 +5,6 @@ output:
      css: style.css
 ---
 
-<p align = "justify">
-
-<font size="5"> Data analysis for: </font>
-
-<font size="4"> Dylan J. Padilla Perez, 2023. Geographic variation of the *for* gene reveals signatures of local adaptation in *Drosophila melanogaster*.</font>
-</p>
-
-</p></p>
-
-[Dylan J. Padilla Perez](https://dylanpadilla.netlify.app/), School of Life Sciences, Arizona State University, Tempe, AZ 85287, USA.
-</p></p>
-
 
 ```{r, setup, include=FALSE}
 
@@ -39,49 +27,31 @@ library(car)
 library(ComplexHeatmap)
 library(data.table)
 library(dartR)
-library(dplyr)
 library(ecodist)
-library(ggsn)
-library(grid)
-library(gridBase)
-library(ggplot2)
-library(gplots)
-library(ggpubr)
-library(ggspatial)
 library(hierfstat)
-library(lattice)
+library(gplots)
 library(LEA)
 library(lfmm)
-library(MASS)
 library(maps)
-library(maptools)
 library(mapplots)
-library(miscTools)
-library(naniar)
-library(OutFLANK)
-library(patchwork)
+library(MASS)
 library(pegas)
 library(poppr)
 library(qvalue)
 library(randomcoloR)
 library(raster)
 library(reshape)
-library(rgeos)
-library(rnaturalearth)
-library(rnaturalearthdata)
-library(rworldxtra)
 library(rworldmap)
 library(scales)
-library(sf)
-library(shape)
 library(SeqArray)
 library(SeqVarTools)
+library(shape)
 library(SNPRelate)
 library(stringr)
 library(vcfR)
 library(vegan)
 library(xtable)
-
+library(PBSmapping)
 
 ```
 
@@ -467,7 +437,6 @@ LD.general
 ```{r}
 
 fly_fst <- genet.dist(fly_gen3, method = "WC84") %>% round(digits = 3)
-fly_fst[[1:10, 1:10]]
 
 fst.mat <- as.matrix(fly_fst)
 fst.mat[fst.mat < 0] <- 0
@@ -589,9 +558,9 @@ pops <- qmplot$pops
 ```{r}
 
 
-## png("admixture.png", width = 7, height = 7, units = "in", res = 300)
+## png("admixture_revision.png", width = 7, height = 7, units = "in", res = 300)
 
-## pdf("admixture.pdf")
+## pdf("admixture_revision.pdf")
 
 layout(matrix(c(0, 1, 1, 0,
                 0, 1, 1, 0,
@@ -621,14 +590,14 @@ for(i in 1:length(pops)){
 medians[1:10]
 
 text(x = as.numeric(unique(as.character(medians))), y = par("usr")[3] - 0.05, labels = names, xpd = NA, srt = 35, cex = 1, adj = 1.2)
-mtext("Individuals", side = 1, line = 4)
+mtext("Pools", side = 1, line = 4)
 mtext("(b)", side = 2, at = 1.1, line = 2.4, font = 2, family = "serif", las = 1)
 
 ## dev.off()
 
 ```
 <p align = "justify">
-<font size="4"> **Figure 2.** Population structure analysis based on individual ancestry coefficients for a number of ancestral populations. **(a)** Cross-entropy values for each snmf run with k ranging between k = 1 and k = 10. The red arrow indicates the most likely value of k. **(b)** Admixture proportion across populations of *D. melanogaster*. Colors indicate genetic clusters. </font>
+<font size="4"> **Figure 2.** Population structure analysis based on individual ancestry coefficients for a number of ancestral populations. **(a)** Cross-entropy values for each snmf run with *k* ranging between *k = 1* and *k = 10*. The red arrow indicates the most likely value of *k*. **(b)** Admixture proportion across populations of *D. melanogaster*. Tick marks on the x axis correspond to the median number of pools per locality. Colors indicate genetic clusters. </font>
 </p>
 <br><br>
 
@@ -699,48 +668,52 @@ meanpies <- aggregate(pies[2:12], by = list(pies$country), mean)
 
 ## Plotting map
 
+## png("map_revision.png", width = 7, height = 7, units = "in", res = 300)
+
+## pdf("map_revision.pdf")
+
 quartz()
 
-map("world", fill = TRUE, col = "gray", xlim = c(-130, 50), ylim = c(-20, 70), border = 0, mar = c(0, 5.5, 0, 0))
+layout(matrix(c(1, 1, 1, 1,
+                1, 1, 1, 1,
+                2, 2, 2, 2,
+                2, 2, 2, 2), nrow = 4, ncol = 4, byrow = TRUE))
 
-map.axes(cex.axis = 0.7, las = 1)
-mtext(side = 1, line = 2, "Longitude")
-mtext(side = 2, line = 2, "Latitude")
+map("state", fill = TRUE, col = "beige", border = "gray", asp = 1)
+map.axes(cex.axis = 1, las = 1)
+mtext(side = 1, line = 3, "Longitude")
+mtext(side = 2, line = 3, "Latitude")
+addCompass(-120, 29, rot = 0, useWest = TRUE, cex = 0.5, col.compass = "gainsboro")
+
+## Adding pie charts to the map
+
+for(i in 1:nrow(meanpies)){
+    add.pie(z = c(meanpies$cluster1[i], meanpies$cluster2[i], meanpies$cluster3[i], meanpies$cluster4[i], meanpies$cluster5[i], meanpies$cluster6[i], meanpies$cluster7[i], meanpies$cluster8[i], meanpies$cluster9[i]), x = meanpies$long[i], y = meanpies$lat[i], radius = 1.5, col = RColorBrewer::brewer.pal(9,"Paired"), labels = "", border = FALSE)
+    
+}
+
+
+newmap <- getMap(resolution = "low")
+plot(newmap, col = "beige", border = "gray", xlim = c(-10, 40), ylim = c(35, 71), asp = 1)
+map.axes(cex.axis = 1, las = 1)
+mtext(side = 1, line = 3, "Longitude")
+mtext(side = 2, line = 3, "Latitude")
+addCompass(-16, 40, rot = 0, useWest = TRUE, cex = 0.5, col.compass = "gainsboro")
 
 
 ## Adding pie charts to the map
 
 for(i in 1:nrow(meanpies)){
-    add.pie(z = c(meanpies$cluster1[i], meanpies$cluster2[i], meanpies$cluster3[i], meanpies$cluster4[i], meanpies$cluster5[i], meanpies$cluster6[i], meanpies$cluster7[i], meanpies$cluster8[i], meanpies$cluster9[i]), x = meanpies$long[i], y = meanpies$lat[i], radius = 2, col = RColorBrewer::brewer.pal(9,"Paired"), labels = "", border = FALSE)
+    add.pie(z = c(meanpies$cluster1[i], meanpies$cluster2[i], meanpies$cluster3[i], meanpies$cluster4[i], meanpies$cluster5[i], meanpies$cluster6[i], meanpies$cluster7[i], meanpies$cluster8[i], meanpies$cluster9[i]), x = meanpies$long[i], y = meanpies$lat[i], radius = 2.5, col = RColorBrewer::brewer.pal(9,"Paired"), labels = "", border = FALSE)
     
 }
-
-
-## png("map.png", width = 7, height = 7, units = "in", res = 300)
-
-## pdf("map.pdf")
-
-
-##map("world", fill = FALSE, col = "white", xlim = c(-130, 50), ylim = c(-20, 70), boundary = FALSE, mar = c(0, 5.5, 0, 0))
-
-##world <- ne_countries(scale = "medium", returnclass = "sf")
-
-##ggplot(data = world) + geom_sf() + coord_sf(xlim = c(-130, 67), ylim = c(-20, 82), expand = FALSE) +
-##    xlab("Longitude") + ylab("Latitude") + annotation_north_arrow(location = "bl", which_north = "true", pad_x = unit(0, "in"), pad_y = unit(0.1, "in"), height = unit(0.4, "in"), width = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + theme(panel.grid.major = element_line(color = gray(.5), linetype = "dashed", linewidth = 0.5), panel.background = element_rect(fill = "#cff1ff"))
-
-## Adding pie charts to the map
-
-##for(i in 1:nrow(meanpies)){
-##    add.pie(z = c(meanpies$cluster1[i], meanpies$cluster2[i], meanpies$cluster3[i], meanpies$cluster4[i], meanpies$cluster5[i], meanpies$cluster6[i], meanpies$cluster7[i], meanpies$cluster8[i], meanpies$cluster9[i]), x = meanpies$long[i], y = meanpies$lat[i], radius = 2, col = RColorBrewer::brewer.pal(9,"Paired"), labels = "", border = FALSE)
-    
-##}
 
 
 ## dev.off()
 
 ```
 <p align = "justify">
-<font size="4"> **Figure 3.** Mean admixture proportions across populations of *D. melanogaster* surveyed in America and Europe. Colors in the pie charts represent genetic clusters. </font>
+<font size="4"> **Figure 3.** Mean admixture proportions across populations of D. melanogaster surveyed in America (upper panel) and Europe (lower panel). Colors in the pie charts represent genetic clusters. </font>
 </p>
 <br><br>
 
@@ -818,6 +791,15 @@ rownames(NPP.data.ext.dis) <- rownames(obj)
 
 DNPP <- round(dist(log(NPP.data.ext.dis)), 3)
 DNPP
+
+
+## R script for 'MMRR' function that performs Multiple Matrix Regression with Randomization analysis.
+
+source("MMRR.R")
+
+distances <- list(Dgeo = as.matrix(Dgeo), DNPP = as.matrix(DNPP))
+
+MMRR(as.matrix(fst.dist), distances)
 
 
 ## partial mantel test
@@ -937,6 +919,7 @@ for(i in mat_adap$Ind){
     idx = idx + 1
 }
 
+mat_adap$season[mat_adap$season == "frost"] <- "fall"
 head(mat_adap)
 
 ## extracting NPP
@@ -984,7 +967,7 @@ head(env)
 
 
 
-## confirm that genotypes and environmental data are in the same order
+## PCA of environmental variables
 
 x <- tab(fly_gen3, NA.method = "mean")
 
@@ -1045,18 +1028,29 @@ anova(gen.cca)
 env$country <- as.factor(env$country)
 levels(env$country)
 cols <- env$country
-cols <- as.numeric(env$country)
+cols <- as.numeric(cols)
 
+ncol <- nPop(fly_gen3)
+palette <- distinctColorPalette(ncol)
 
-## png("cca.png", width = 7, height = 7, units = "in", res = 300)
+colors <- rep()
 
-## pdf("cca.pdf")
+for(i in cols){
+    col <- palette[i]
+    colors <- c(colors, col)
+}
+
+colors
+
+## png("cca_revision.png", width = 7, height = 7, units = "in", res = 300)
+
+## pdf("cca_revision.pdf")
 
 plot(gen.cca, display = "sites", type = "n", las = 1)
-with(gen.cca, points(gen.cca, display = "sites", pch = 21, bg = cols, col = cols))
+with(gen.cca, points(gen.cca, display = "sites", pch = 21, bg = colors, col = colors))
 ##with(env[3], ordiellipse(gen.cca, env$country, kind = "se", conf = 0.95, col = "gray"))
-##with(env[3], ordihull(gen.cca, env$country, col = palette, lty = 2))
-with(env[3], ordispider(gen.cca, env$country, col = unique(cols), label = TRUE))
+##with(env[3], ordihull(gen.cca, env$country, col = colors, lty = 2))
+with(env[3], ordispider(gen.cca, env$country, col = unique(colors), label = TRUE))
 ##legend("topright", legend = levels(env$country), pch = 19, col = unique(cols), bty = "n", cex = 0.8)
 
 ## dev.off()
@@ -1064,7 +1058,7 @@ with(env[3], ordispider(gen.cca, env$country, col = unique(cols), label = TRUE))
 
 ```
 <p align = "justify">
-<font size="4"> **Figure 4.** Constrained correspondence analysis depicting the spatial distribution of populations based on the effect of season and locality. "Spider" diagrams connect the pools to the population centroid. </font>
+<font size="4"> **Figure 4.** Constrained correspondence analysis depicting the difference in allele frequency across populations mediated by the interaction between season and locality. Filled dots represent pooled samples and "spider" diagrams connect the pools to the population centroid. </font>
 </p>
 <br><br>
 
@@ -1074,39 +1068,35 @@ with(env[3], ordispider(gen.cca, env$country, col = unique(cols), label = TRUE))
 
 ## Detecting selection
 
+load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-scan/fly.pv1.RData")
+load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-scan/fly.qv1.RData")
+
+fly.pv1.chr2 <- fly.pv1
+fly.qv1.chr2 <- fly.qv1
+
+
+rm(fly.pv1)
+rm(fly.qv1)
+
 head(env)
 
 
-env.pca <- rda(env[ , c(2, 3, 6, 7, 8)], scale = T)
+##env.pca <- rda(env[ , c(2, 3, 6, 7, 8)], scale = T)
+env.pca <- rda(env[ , c(6, 7, 8)], scale = T)
 summary(env.pca)$cont
-
-
-quartz()
-par(las = 1)
-screeplot(env.pca, main = " ")
-
-round(scores(env.pca, choices = 1:5, display = "species", scaling = 0), digits = 3)
-
-pred.PC1 <- scores(env.pca, choices = 1, display = "sites", scaling = 0)
-
 
 par(las = 1)
 screeplot(env.pca, bstick = TRUE, type = "lines", las = 1, main = "")
 
-## genomic data
+round(scores(env.pca, choices = 1:3, display = "species", scaling = 0), digits = 3)
 
-gen.pca <- rda(snppca, scale = T)
-
-par(las = 1)
-screeplot(gen.pca, main = " ", bstick = TRUE, type = "lines")
-
-## for the genomic data, I can see that two of the PCs have eigenvalues greater than random (greater than the broken stick values in red). This effectively means that K = 2 for the dataset, based on a PCA assessment
+pred.PC2 <- scores(env.pca, choices = 2, display = "sites", scaling = 0)
 
 K <- 9
 
-fly.lfmm1 <- lfmm_ridge(Y = snppca, X = pred.PC1, K = K) ## change K as you see fit
+fly.lfmm1 <- lfmm_ridge(Y = snppca, X = pred.PC2, K = K) ## change K as you see fit
 
-fly.pv1 <- lfmm_test(Y = snppca, X = pred.PC1, lfmm = fly.lfmm1, calibrate = "gif")
+fly.pv1 <- lfmm_test(Y = snppca, X = pred.PC2, lfmm = fly.lfmm1, calibrate = "gif")
 
 names(fly.pv1) # this object includes raw z-scores and p-values, as well as GIF-calibrated scores and p-values
 
@@ -1114,6 +1104,7 @@ names(fly.pv1) # this object includes raw z-scores and p-values, as well as GIF-
 ## let’s look at the genomic inflation factor (GIF)
 
 fly.pv1$gif
+fly.pv1.chr2$gif
 
 ## an appropriately calibrated set of tests will have a GIF of around 1
 
@@ -1121,17 +1112,22 @@ fly.pv1$gif
 
 
 quartz()
-layout(matrix(c(0, 0, 0, 0,
+layout(matrix(c(1, 1, 2, 2,
                 1, 1, 2, 2,
-                1, 1, 2, 2,
-                0, 0, 0, 0), nrow = 4, ncol = 4, byrow = TRUE))
+                3, 3, 4, 4,
+                3, 3, 4, 4), nrow = 4, ncol = 4, byrow = FALSE))
 
-par(mar = c(5, 5, 0.2, 1), las = 1)
+par(mar = c(5, 5, 1, 1), las = 1)
 
-hist(fly.pv1$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "", ylim = c(0, 350))
+hist(fly.pv1$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "for", ylim = c(0, 350))
 legend("top", "K = 9", bty = "n")
 hist(fly.pv1$pvalue[ , 1], xlab = "Unadjusted p-values", las = 1, main = "", ylim = c(0, 400))
 legend("top", "K = 9", bty = "n")
+
+hist(fly.pv1.chr2$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "Chr 2L", ylim = c(0, 150000))
+legend("top", "K = 8", bty = "n")
+hist(fly.pv1.chr2$pvalue[ , 1], xlab = "Unadjusted p-values", las = 1, main = "", ylim = c(0, 150000))
+legend("top", "K = 8", bty = "n")
 
 
 ## convert the adjusted p-values to q-values. q-values provide a measure of each SNP’s significance, automatically taking into account the fact that thousands are simultaneously being tested. I can then use an FDR threshold to control the number of false positive detections (given that the p-value distribution is “well-behaved”)
@@ -1140,9 +1136,22 @@ fly.qv1 <- qvalue(fly.pv1$calibrated.pvalue)$qvalues
 length(which(fly.qv1 < 0.05)) ## how many SNPs have an FDR < 5%?
 
 
-## using K = 9, the default GIF correction, and an FDR threshold of 0.05, I detected 2 candidate SNPs under selection in response to the PC1 environmental predictor
+fly.qv1.chr2 <- qvalue(fly.pv1.chr2$calibrated.pvalue)$qvalues
+length(which(fly.qv1.chr2 < 0.05)) ## how many SNPs have an FDR < 5%?
+
+
+## using K = 9, the default GIF correction, and an FDR threshold of 0.05, I detected 2 candidate SNPs under selection in response to the PC2 environmental predictor
 
 (fly.FDR <- colnames(snppca)[which(fly.qv1 < 0.05)]) ## identify which SNPs these are
+dim(snppca)
+rm(snppca)
+
+load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-scan/snppca_chr2.RData")
+
+dim(snppca)
+
+(fly.FDR.chr2 <- colnames(snppca)[which(fly.qv1.chr2 < 0.05)]) ## identify which SNPs these are
+
 
 
 ## visualizing results
@@ -1151,20 +1160,48 @@ length(which(fly.qv1 < 0.05)) ## how many SNPs have an FDR < 5%?
 ## Manhattan plot with causal loci
  
 qvalues <- fly.qv1
+qvalues.chr2 <- fly.qv1.chr2
 
 row <- as.data.frame(qvalues)
 str(row)
+rownames(row) <- 1:nrow(row)
 
-rownames(row) <- 1:3100
+row.chr2 <- as.data.frame(qvalues.chr2)
+str(row.chr2)
+rownames(row.chr2) <- 1:nrow(row.chr2)
+
 
 (causal.set <- as.numeric(rownames(row)[which(row < 0.05)]))
 (fly.FDR <- gsub("[^0-9]", "", fly.FDR))
 
+head(afis[afis$variant.id == fly.FDR, c(2, 6, 7, 8, 9, 11, 21, 32)], n = 2) # One of the SNPs should be checked carefully as the position on chromosome 2L does not match the annotations. SNP163269 is at pos 3637803, which falls within the for gene. According to FlyBase, the gene mir-4972 stem loop is referred to Dmel\mir-4972 (CR43508, FBgn0263523). It is a miRNA_gene from Dmel. It has 3 annotated transcripts. Gene sequence location is 2L:3636967..3637073. Its molecular function is unknown. The biological processes in which it is involved are not known. No alleles are reported. [https://flybase.org/reports/FBgn0263523](https://flybase.org/reports/FBgn0263523)
+
+(causal.set.chr2 <- as.numeric(rownames(row.chr2)[which(row.chr2 < 0.05)]))
+(fly.FDR.chr2 <- gsub("[^0-9]", "", fly.FDR.chr2))
+
+head(afis[afis$variant.id == fly.FDR.chr2, c(2, 6, 7, 8, 9, 11, 21, 32)], n = 2)
+
+data.frame(causal.set.chr2, fly.FDR.chr2)
+
+#snps.sel.chr2 <- unique(fly.FDR.chr2)
+#save(snps.sel.chr2, file = "snps.sel.chr2")
 
 quartz()
-plot(-log10(qvalues), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1)
+
+layout(matrix(c(0, 1, 1, 0,
+                0, 1, 1, 0,
+                0, 2, 2, 0,
+                0, 2, 2, 0), nrow = 4, ncol = 4, byrow = TRUE))
+
+
+plot(-log10(qvalues), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, ylim = c(0, 2), main = "for")
 points(causal.set, -log10(qvalues)[causal.set], pch = 19, col = alpha("red", 0.3))
-text(causal.set, (-log10(qvalues)[causal.set] - 0.05), fly.FDR, col = "red")
+text(causal.set, (-log10(qvalues)[causal.set] - 0.1), fly.FDR, col = "red")
+
+
+plot(-log10(qvalues.chr2), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, ylim = c(0, 3), main = "Chr 2L")
+points(causal.set.chr2[c(37, 38)], -log10(qvalues.chr2)[causal.set.chr2[c(37, 38)]], pch = 19, col = alpha("red", 0.3))
+text(causal.set.chr2[c(37, 38)], (-log10(qvalues.chr2)[causal.set.chr2[c(37, 38)]] - 0.1), fly.FDR.chr2[c(37, 38)], col = "red", cex = 0.5)
 
 
 
@@ -1176,29 +1213,38 @@ text(causal.set, (-log10(qvalues)[causal.set] - 0.05), fly.FDR, col = "red")
 
 quartz()
 
-## png("adaptation.png", width = 7, height = 7, units = "in", res = 300)
+## png("adaptation_revision.png", width = 7, height = 7, units = "in", res = 300)
 
-## pdf("adaptation.pdf")
+## pdf("adaptation_revision.pdf")
 
-layout(matrix(c(0, 1, 1, 0,
-                0, 1, 1, 0,
-                0, 2, 2, 0,
-                0, 2, 2, 0), nrow = 4, ncol = 4, byrow = TRUE))
 
-par(las = 1, mar = c(4, 4, 1, 0.6))
-hist(fly.pv1$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "", ylim = c(0, 350))
-legend("top", paste("K = 9\nGIF = ", round(fly.pv1$gif, 2)), bty = "n")
+layout(matrix(c(1, 1, 2, 2,
+                1, 1, 2, 2,
+                3, 3, 4, 4,
+                3, 3, 4, 4), nrow = 4, ncol = 4, byrow = FALSE))
+
+hist(fly.pv1$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "for", ylim = c(0, 350))
+legend("top", paste("K = 9\nGIF = ", round(fly.pv1$gif, 3)), bty = "n")
 mtext("(a)", side = 2, at = 365, line = 2.5, las = 1, font = 2, family = "serif")
 
-plot(-log10(qvalues), pch = 19, cex = 1, bg = "gray", col = alpha("gray", 0.6), xlab = "SNP", las = 1)
-points(causal.set, -log10(qvalues)[causal.set], pch = 19, col = "orange")
-text(causal.set, (-log10(qvalues)[causal.set] - 0.1), fly.FDR, col = "orange")
-mtext("(b)", side = 2, at = 1.4, line = 2.5, las = 1, font = 2, family = "serif")
+plot(-log10(qvalues), pch = 19, cex = 1, bg = "gray", col = alpha("gray", 0.6), xlab = "SNP", las = 1, ylim = c(0, 2))
+points(causal.set, -log10(qvalues)[causal.set], pch = 19, col = "black")
+text(causal.set, (-log10(qvalues)[causal.set] - 0.15), fly.FDR, col = "black")
+
+hist(fly.pv1.chr2$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "Chr 2L", ylim = c(0, 150000))
+legend("top", paste("K = 8\nGIF = ", round(fly.pv1.chr2$gif, 3)), bty = "n")
+mtext("(b)", side = 2, at = 158010, line = 4, las = 1, font = 2, family = "serif")
+
+plot(-log10(qvalues.chr2), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, ylim = c(0, 3), main = "")
+points(causal.set.chr2[-c(37, 38)], -log10(qvalues.chr2)[causal.set.chr2[-c(37, 38)]], pch = 19, col = "black")
+points(causal.set.chr2[c(37, 38)], -log10(qvalues.chr2)[causal.set.chr2[c(37, 38)]], pch = 19, col = "red")
+text(causal.set.chr2[c(37, 38)], (-log10(qvalues.chr2)[causal.set.chr2[c(37, 38)]] - 0.13), fly.FDR.chr2[c(37, 38)], col = "red", cex = 0.8)
+
 
 ## dev.off()
 
 ```
 <p align = "justify">
-<font size="4"> **Figure 5.** Genotype-environment association test based on a latent factor mixed model with ridge penalty. **(a)** Distribution of adjusted p-values using the default genomic inflation factor. **(b)** Manhattan plot of loci (SNPs) potentially affected by the PC1 predictor variable. Loci highlighted in red were considered to be under selection according to a False Discovery Rate of 0.05. </font>
+<font size="4"> **Figure 5.** Genotype-environment association test based on a latent factor mixed model with ridge penalty. **(a)** Distribution of adjusted p-values using the default genomic inflation factor, and the for loci (SNPs) potentially affected by the PC2 predictor variable. Likewise, **(b)** displays the same analysis for the entire chromosome 2L. Bold dots represent loci considered to be under selection according to a False Discovery Rate of 0.05. </font>
 </p>
 <br><br>
