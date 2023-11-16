@@ -6,6 +6,19 @@ output:
 ---
 
 
+<p align = "justify">
+
+<font size="5"> Data analysis for: </font>
+
+<font size="4"> Dylan J. Padilla Perez, 2023. Geographic and seasonal variation of the *for* gene reveal signatures of local adaptation in *Drosophila melanogaster*.</font>
+</p>
+
+</p></p>
+
+[Dylan J. Padilla Perez](https://dylanpadilla.netlify.app/), School of Life Sciences, Arizona State University, Tempe, AZ 85287, USA.
+</p></p>
+
+
 ```{r, setup, include=FALSE}
 
 knitr::opts_chunk$set(dpi = 300, warning = FALSE, error = FALSE, message = FALSE, fig.align = "center", fig.height = 7, fig.width = 7)
@@ -35,6 +48,7 @@ library(lfmm)
 library(maps)
 library(mapplots)
 library(MASS)
+library(PBSmapping)
 library(pegas)
 library(poppr)
 library(qvalue)
@@ -51,7 +65,7 @@ library(stringr)
 library(vcfR)
 library(vegan)
 library(xtable)
-library(PBSmapping)
+
 
 ```
 
@@ -558,9 +572,9 @@ pops <- qmplot$pops
 ```{r}
 
 
-## png("admixture_revision.png", width = 7, height = 7, units = "in", res = 300)
+## png("admixture_revision3.png", width = 7, height = 7, units = "in", res = 300)
 
-## pdf("admixture_revision.pdf")
+## pdf("admixture_revision3.pdf")
 
 layout(matrix(c(0, 1, 1, 0,
                 0, 1, 1, 0,
@@ -574,22 +588,25 @@ mtext("(a)", side = 2, at = 0.342, line = 2.8, font = 2, family = "serif", las =
 
 par(mar = c(5, 4.5, 1, 0))
 barplot(t(qmplot[1:9]), col = RColorBrewer::brewer.pal(9,"Paired"), border = NA, space = 0, xlab = "", xaxt = "n",  ylab = "Admixture proportion", las = 1, cex.lab = 1.4)
+ticks <- c(0, 6, 11, 20, 26, 43, 49, 56, 66, 78, 84, 89, 95, 133, 139)
 
 ## adding population labels to the axis:
 
 names <- unique(as.character(pops))
 
-medians <- c()
+#medians <- c()
 
-for(i in 1:length(pops)){
-    
-    axis(1, at = median(which(pops == pops[i])), labels = "")
-    medians <- c(medians, median(which(pops == pops[i])))
+for(i in ticks){
+#for(i in 1:length(pops)){
+
+    axis(1, at = i, labels = "")
+    #axis(1, at = median(which(pops == pops[i])), labels = "")
+    #medians <- c(medians, median(which(pops == pops[i])))
 }
 
-medians[1:10]
-
-text(x = as.numeric(unique(as.character(medians))), y = par("usr")[3] - 0.05, labels = names, xpd = NA, srt = 35, cex = 1, adj = 1.2)
+#medians[1:10]
+text(x = c(3, 8, 15, 25, 29, 47, 53, 60, 73, 82, 87, 94, 101, 136, 143), y = par("usr")[3] - 0.05, labels = names, xpd = NA, srt = 35, cex = 1, adj = 1)
+#text(x = as.numeric(unique(as.character(medians))), y = par("usr")[3] - 0.05, labels = names, xpd = NA, srt = 35, cex = 1, adj = 1.2)
 mtext("Pools", side = 1, line = 4)
 mtext("(b)", side = 2, at = 1.1, line = 2.4, font = 2, family = "serif", las = 1)
 
@@ -713,7 +730,7 @@ for(i in 1:nrow(meanpies)){
 
 ```
 <p align = "justify">
-<font size="4"> **Figure 3.** Mean admixture proportions across populations of D. melanogaster surveyed in America (upper panel) and Europe (lower panel). Colors in the pie charts represent genetic clusters. </font>
+<font size="4"> **Figure 3.** Mean admixture proportions across populations of *D. melanogaster* surveyed in America (upper panel) and Europe (lower panel). Colors in the pie charts represent genetic clusters. </font>
 </p>
 <br><br>
 
@@ -760,14 +777,22 @@ fly_gen3
 ## genetic distance
 
 GD.pop.PairwiseFst.hierfstat <- as.dist(hierfstat::pairwise.neifst(hierfstat::genind2hierfstat(fly_gen3)))
+GD <- as.matrix(GD.pop.PairwiseFst.hierfstat)
+
+USA <- c("MI-WI", "Charlottesville", "Esparto", "NY-MA", "PA", "Tuolumne")
+
+GD <- as.dist(GD[!rownames(GD) %in% USA, !colnames(GD) %in% USA])
+GD
 
 ## geographic distance
 
 Dgeo <- round(dist(fly_gen3$other), 3)
+Dgeo <- as.matrix(Dgeo)
+Dgeo <- as.dist(Dgeo[!rownames(Dgeo) %in% USA, !colnames(Dgeo) %in% USA])
 
 ## making sure the order of rows and columns are the same in all of the matrices
 
-ord.gen <- as.matrix(GD.pop.PairwiseFst.hierfstat)
+ord.gen <- as.matrix(GD)
 ord.geo <- as.matrix(Dgeo)
 
 ord.geo
@@ -779,35 +804,43 @@ fst.dist
 Dgeo
 
 
-NPP_file <- list.files("/Users/dpadil10/Dropbox (ASU)/npp-geotiff", full.names = TRUE)
-NPP_file
+obj
+dprec <- obj[!rownames(obj) %in% USA, ]
+dprec
 
-NPP.data <- stack(NPP_file)
+files <- list.files("/Users/dpadil10/Dropbox (ASU)/Padilla et al/wc2.1_30s_bio", full.names = TRUE)
+files
 
-NPP.data.ext.dis <- extract(NPP.data, obj)
-head(NPP.data.ext.dis)
+pre_sea <- stack(files[4])
 
-rownames(NPP.data.ext.dis) <- rownames(obj)
+coord <- dprec[ , c(1, 2)]
+head(coord)
 
-DNPP <- round(dist(log(NPP.data.ext.dis)), 3)
-DNPP
+prec.season <- extract(pre_sea, coord)
+
+colnames(prec.season) <- c("precseason")
+rownames(prec.season) <- rownames(coord)
+head(prec.season)
+
+prec <- round(dist(prec.season), 3)
+prec
 
 
 ## R script for 'MMRR' function that performs Multiple Matrix Regression with Randomization analysis.
 
 source("MMRR.R")
 
-distances <- list(Dgeo = as.matrix(Dgeo), DNPP = as.matrix(DNPP))
+distances <- list(Dgeo = as.matrix(Dgeo), dprec = as.matrix(prec))
 
 MMRR(as.matrix(fst.dist), distances)
 
 
 ## partial mantel test
 
-part.mant <- mantel.partial(fst.dist, DNPP, Dgeo, method = "pearson", permutations = 1000)
+part.mant <- mantel.partial(fst.dist, prec, Dgeo, method = "pearson", permutations = 1000)
 part.mant
 
-part.mant2 <- mantel.partial(fst.dist, Dgeo, DNPP, method = "pearson", permutations = 1000)
+part.mant2 <- mantel.partial(fst.dist, Dgeo, prec, method = "pearson", permutations = 1000)
 part.mant2
 
 ## mantel test
@@ -821,7 +854,7 @@ plot(ibd, las = 1, main = "") ## isolation by distance is clearly significant
 mantCor <- mgram(fst.dist, Dgeo, nperm = 1000)
 mantCor
 
-mantCor2 <- mgram(fst.dist, DNPP, nperm = 1000)
+mantCor2 <- mgram(fst.dist, prec, nperm = 1000)
 mantCor2
 
 plot(mantCor, las = 1)
@@ -836,16 +869,34 @@ myPal <- colorRampPalette(c("white", "blue", "gold", "orange", "red"))
 plot(as.vector(Dgeo), as.vector(fst.dist), pch = 20, xlab = "Geographic Distance", ylab = "Genetic Distance", las = 1)
 image(dens, col = transp(myPal(300), 0.7), add = TRUE)
 abline(lm(as.vector(fst.dist) ~ as.vector(Dgeo)), lwd = 2)
-lines(loess.smooth(as.vector(Dgeo), as.vector(fst.dist)), col = "red", lwd = 2)
+#lines(loess.smooth(as.vector(Dgeo), as.vector(fst.dist)), col = "red", lwd = 2)
 
-
-dens2 <- MASS::kde2d(as.vector(DNPP), as.vector(fst.dist), n = 300)
+dens2 <- MASS::kde2d(as.vector(prec), as.vector(fst.dist), n = 300)
 myPal2 <- colorRampPalette(c("white", "blue", "gold", "orange", "red"))
-plot(as.vector(DNPP), as.vector(fst.dist), pch = 20, xlab = "NPP Distance", ylab = "Genetic Distance", las = 1)
+plot(as.vector(prec), as.vector(fst.dist), pch = 20, xlab = "Precipitation distance", ylab = "Genetic Distance", las = 1)
 image(dens2, col = transp(myPal2(300), 0.7), add = TRUE)
-abline(lm(as.vector(fst.dist) ~ as.vector(DNPP)), lwd = 2)
-lines(loess.smooth(as.vector(DNPP), as.vector(fst.dist)), col = "red", lwd = 2)
+abline(lm(as.vector(fst.dist) ~ as.vector(prec)), lwd = 2)
+#lines(loess.smooth(as.vector(prec), as.vector(fst.dist)), col = "red", lwd = 2)
 
+
+quartz()
+
+layout(matrix(c(1, 1, 2, 2,
+                1, 1, 2, 2,
+                3, 3, 4, 4,
+                3, 3, 4, 4), nrow = 4, ncol = 4, byrow = TRUE))
+
+plot(lm(as.vector(fst.dist) ~ as.vector(prec)), las = 1)
+
+
+quartz()
+
+layout(matrix(c(1, 1, 2, 2,
+                1, 1, 2, 2,
+                3, 3, 4, 4,
+                3, 3, 4, 4), nrow = 4, ncol = 4, byrow = TRUE))
+
+plot(lm(as.vector(fst.dist) ~ as.vector(Dgeo)), las = 1)
 
 
 ```
@@ -854,43 +905,32 @@ lines(loess.smooth(as.vector(DNPP), as.vector(fst.dist)), col = "red", lwd = 2)
 ```{r}
 
 
-## png("distance.png", width = 7, height = 7, units = "in", res = 300)
+## png("distance.revision2.png", width = 7, height = 7, units = "in", res = 300)
 
-## pdf("distance.pdf")
+## pdf("distance.revision2.pdf")
 
-layout(matrix(c(1, 1, 2, 2,
-                1, 1, 2, 2,
-                3, 3, 4, 4,
-                3, 3, 4, 4), nrow = 4, ncol = 4, byrow = TRUE))
+layout(matrix(c(0, 1, 1, 0,
+                0, 1, 1, 0,
+                0, 2, 2, 0,
+                0, 2, 2, 0), nrow = 4, ncol = 4, byrow = TRUE))
 
-
-par(mar = c(4.2, 4.1, 1, 1))
 plot(as.vector(Dgeo), as.vector(fst.dist), pch = 20, xlab = "Geographic Distance", ylab = "Genetic Distance", las = 1, cex.lab = 1.4)
 image(dens, col = transp(myPal(300), 0.7), add = TRUE)
 abline(lm(as.vector(fst.dist) ~ as.vector(Dgeo)), lwd = 2)
-lines(loess.smooth(as.vector(Dgeo), as.vector(fst.dist)), col = "red", lwd = 2)
-mtext("(a)", side = 2, at = 0.07, line = 2.6, font = 2, family = "serif", las = 1)
+#lines(loess.smooth(as.vector(Dgeo), as.vector(fst.dist)), col = "red", lwd = 2)
+mtext("(a)", side = 2, at = 0.035, line = 2.6, font = 2, family = "serif", las = 1)
 
-par(mar = c(4, 4.1, 1, 1))
-plot(as.vector(DNPP), as.vector(fst.dist), pch = 20, xlab = "NPP Distance", ylab = "Genetic Distance", las = 1, cex.lab = 1.4)
+plot(as.vector(prec), as.vector(fst.dist), pch = 20, xlab = "Precipitation distance", ylab = "Genetic Distance", las = 1, cex.lab = 1.4)
 image(dens2, col = transp(myPal2(300), 0.7), add = TRUE)
-abline(lm(as.vector(fst.dist) ~ as.vector(DNPP)), lwd = 2)
-lines(loess.smooth(as.vector(DNPP), as.vector(fst.dist)), col = "red", lwd = 2)
-mtext("(b)", side = 2, at = 0.07, line = 3.1, font = 2, family = "serif", las = 1)
-
-par(mar = c(4.2, 4.1, 1, 1))
-plot(mantCor, las = 1, cex.axis = 1, cex.lab = 1.6, xlab = "Geographic Distance")
-mtext("(c)", side = 2, at = 0.7, line = 2.6, font = 2, family = "serif", las = 1)
-
-par(mar = c(4, 4.1, 1, 1))
-plot(mantCor2, las = 1, cex.axis = 1, cex.lab = 1.6, ylim = c(-0.4, 0.6), xlab = "NPP Distance")
-mtext("(d)", side = 2, at = 0.65, line = 3.1, font = 2, family = "serif", las = 1)
+abline(lm(as.vector(fst.dist) ~ as.vector(prec)), lwd = 2)
+#lines(loess.smooth(as.vector(prec), as.vector(fst.dist)), col = "red", lwd = 2)
+mtext("(b)", side = 2, at = 0.035, line = 3.1, font = 2, family = "serif", las = 1)
 
 ## dev.off()
 
 ```
 <p align = "justify">
-<font size="4"> **Figure 6.** Patterns of isolation by distance and isolation by environment according to Partial Mantel tests and Correlograms. **(a-b)** Geographic and net primary production distances as a function of genetic distance. Colors represent estimated probability densities and the red line a smoothed local mean. **(c-d)** Mantel correlation at different distance classes as a function of geographic and net primary production distances. Filled dots indicate significant correlations. </font>
+<font size="4"> **Figure 6.** Patterns of isolation by distance and isolation by environment according to Multiple Matrix Regression with Randomization analysis (MMRR). (a-b) Geographic and precipitation distances as a function of genetic distance in European populations of *D. melanogaster*. Colors represent estimated probability densities. </font>
 </p>
 <br><br>
 
@@ -991,8 +1031,8 @@ merging[1:5, 3090:3100]
 
 genomic <- merging
 
-env$Ind <- as.factor(env$Ind)
-env$Ind <- as.character(levels(env$Ind))
+#env$Ind <- as.factor(env$Ind)
+#env$Ind <- as.character(levels(env$Ind))
 dim(snppca)
 snppca[1:5, 1:5]
 snppca[1:5, 3090:3102]
@@ -1001,6 +1041,7 @@ snppca <- snppca[ , -c(3101, 3102)]
 dim(snppca)
 snppca[1:5, 3090:3100]
 
+genomic <- genomic[env[ , 4], ]
 
 identical(rownames(genomic), env[ , 4]) ## genotypes and environmental data are in the same order
 
@@ -1042,9 +1083,9 @@ for(i in cols){
 
 colors
 
-## png("cca_revision.png", width = 7, height = 7, units = "in", res = 300)
+## png("cca_revision3.png", width = 7, height = 7, units = "in", res = 300)
 
-## pdf("cca_revision.pdf")
+## pdf("cca_revision3.pdf")
 
 plot(gen.cca, display = "sites", type = "n", las = 1)
 with(gen.cca, points(gen.cca, display = "sites", pch = 21, bg = colors, col = colors))
@@ -1068,21 +1109,24 @@ with(env[3], ordispider(gen.cca, env$country, col = unique(colors), label = TRUE
 
 ## Detecting selection
 
-load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-scan/fly.pv1.RData")
-load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-scan/fly.qv1.RData")
-
-fly.pv1.chr2 <- fly.pv1
-fly.qv1.chr2 <- fly.qv1
+load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-scan/fly.pv1.prec.chr2.RData")
+load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-scan/fly.pv1.temp.chr2.RData")
+load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-scan/fly.pv1.npp.chr2.RData")
 
 
-rm(fly.pv1)
-rm(fly.qv1)
+fly.pv1.prec.chr2 <- fly.pv1.prec
+fly.pv1.temp.chr2 <- fly.pv1.temp
+fly.pv1.npp.chr2 <- fly.pv1.npp
+
+rm(fly.pv1.prec)
+rm(fly.pv1.temp)
+rm(fly.pv1.npp)
 
 head(env)
 
 
 ##env.pca <- rda(env[ , c(2, 3, 6, 7, 8)], scale = T)
-env.pca <- rda(env[ , c(6, 7, 8)], scale = T)
+env.pca <- rda(env[ , c(6, 7, 8)], scale = TRUE)
 summary(env.pca)$cont
 
 par(las = 1)
@@ -1090,21 +1134,36 @@ screeplot(env.pca, bstick = TRUE, type = "lines", las = 1, main = "")
 
 round(scores(env.pca, choices = 1:3, display = "species", scaling = 0), digits = 3)
 
-pred.PC2 <- scores(env.pca, choices = 2, display = "sites", scaling = 0)
+#pred.PC2 <- scores(env.pca, choices = 2, display = "sites", scaling = 0)
+
+##pred.PC1 <- scores(env.pca, choices = 1:2, display = "sites", scaling = 0) ## reviewer 3 suggested to use PC1 instead
 
 K <- 9
 
-fly.lfmm1 <- lfmm_ridge(Y = snppca, X = pred.PC2, K = K) ## change K as you see fit
+fly.lfmm1.prec <- lfmm_ridge(Y = snppca, X = env$precseason, K = K) ## change K as you see fit
+fly.lfmm1.temp <- lfmm_ridge(Y = snppca, X = env$tempseason, K = K) ## change K as you see fit
+fly.lfmm1.npp <- lfmm_ridge(Y = snppca, X = env$logNPP, K = K) ## change K as you see fit
 
-fly.pv1 <- lfmm_test(Y = snppca, X = pred.PC2, lfmm = fly.lfmm1, calibrate = "gif")
+##fly.lfmm1 <- lfmm_ridge(Y = snppca, X = pred.PC1, K = K) ## using PC1 as suggested by reviewer 3
 
-names(fly.pv1) # this object includes raw z-scores and p-values, as well as GIF-calibrated scores and p-values
+fly.pv1.prec <- lfmm_test(Y = snppca, X = env$precseason, lfmm = fly.lfmm1.prec, calibrate = "gif")
+fly.pv1.temp <- lfmm_test(Y = snppca, X = env$tempseason, lfmm = fly.lfmm1.temp, calibrate = "gif")
+fly.pv1.npp <- lfmm_test(Y = snppca, X = env$logNPP, lfmm = fly.lfmm1.npp, calibrate = "gif")
 
+##fly.pv1 <- lfmm_test(Y = snppca, X = pred.PC1, lfmm = fly.lfmm1, calibrate = "gif") ## using PC1 as suggested by reviewer 3
+
+names(fly.pv1.prec) # this object includes raw z-scores and p-values, as well as GIF-calibrated scores and p-values
+names(fly.pv1.prec.chr2)
 
 ## let’s look at the genomic inflation factor (GIF)
 
-fly.pv1$gif
-fly.pv1.chr2$gif
+fly.pv1.prec$gif
+fly.pv1.temp$gif
+fly.pv1.npp$gif
+
+fly.pv1.prec.chr2$gif
+fly.pv1.temp.chr2$gif
+fly.pv1.npp.chr2$gif
 
 ## an appropriately calibrated set of tests will have a GIF of around 1
 
@@ -1119,30 +1178,42 @@ layout(matrix(c(1, 1, 2, 2,
 
 par(mar = c(5, 5, 1, 1), las = 1)
 
-hist(fly.pv1$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "for", ylim = c(0, 350))
+hist(fly.pv1.prec$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "for", ylim = c(0, 350))
 legend("top", "K = 9", bty = "n")
-hist(fly.pv1$pvalue[ , 1], xlab = "Unadjusted p-values", las = 1, main = "", ylim = c(0, 400))
+hist(fly.pv1.prec$pvalue[ , 1], xlab = "Unadjusted p-values", las = 1, main = "", ylim = c(0, 400))
 legend("top", "K = 9", bty = "n")
 
-hist(fly.pv1.chr2$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "Chr 2L", ylim = c(0, 150000))
+hist(fly.pv1.prec.chr2$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "Chr 2L", ylim = c(0, 120000))
 legend("top", "K = 8", bty = "n")
-hist(fly.pv1.chr2$pvalue[ , 1], xlab = "Unadjusted p-values", las = 1, main = "", ylim = c(0, 150000))
+hist(fly.pv1.prec.chr2$pvalue[ , 1], xlab = "Unadjusted p-values", las = 1, main = "", ylim = c(0, 140000))
 legend("top", "K = 8", bty = "n")
 
 
 ## convert the adjusted p-values to q-values. q-values provide a measure of each SNP’s significance, automatically taking into account the fact that thousands are simultaneously being tested. I can then use an FDR threshold to control the number of false positive detections (given that the p-value distribution is “well-behaved”)
 
-fly.qv1 <- qvalue(fly.pv1$calibrated.pvalue)$qvalues
-length(which(fly.qv1 < 0.05)) ## how many SNPs have an FDR < 5%?
+fly.qv1.prec <- qvalue(fly.pv1.prec$calibrated.pvalue)$qvalues
+fly.qv1.temp <- qvalue(fly.pv1.temp$calibrated.pvalue)$qvalues
+fly.qv1.npp <- qvalue(fly.pv1.npp$calibrated.pvalue)$qvalues
+
+length(which(fly.qv1.prec < 0.001)) ## how many SNPs have an FDR < 0.1%?
+length(which(fly.qv1.temp < 0.001)) ## how many SNPs have an FDR < 0.1%?
+length(which(fly.qv1.npp < 0.001)) ## how many SNPs have an FDR < 0.1%?
+
+fly.qv1.prec.chr2 <- qvalue(fly.pv1.prec.chr2$calibrated.pvalue)$qvalues
+fly.qv1.temp.chr2 <- qvalue(fly.pv1.temp.chr2$calibrated.pvalue)$qvalues
+fly.qv1.npp.chr2 <- qvalue(fly.pv1.npp.chr2$calibrated.pvalue)$qvalues
+
+length(which(fly.qv1.prec.chr2 < 0.001)) ## how many SNPs have an FDR < 0.1%?
+length(which(fly.qv1.temp.chr2 < 0.001)) ## how many SNPs have an FDR < 0.1%?
+length(which(fly.qv1.npp.chr2 < 0.001)) ## how many SNPs have an FDR < 0.1%?
 
 
-fly.qv1.chr2 <- qvalue(fly.pv1.chr2$calibrated.pvalue)$qvalues
-length(which(fly.qv1.chr2 < 0.05)) ## how many SNPs have an FDR < 5%?
+## using K = 9, the default GIF correction, and an FDR threshold of 0.001, I detected 2 candidate SNPs under selection in response to the PC2 environmental predictor
 
+(fly.FDR.prec <- colnames(snppca)[which(fly.qv1.prec < 0.001)]) ## identify which SNPs these are
+(fly.FDR.temp <- colnames(snppca)[which(fly.qv1.temp < 0.001)]) ## identify which SNPs these are
+(fly.FDR.npp <- colnames(snppca)[which(fly.qv1.npp < 0.001)]) ## identify which SNPs these are
 
-## using K = 9, the default GIF correction, and an FDR threshold of 0.05, I detected 2 candidate SNPs under selection in response to the PC2 environmental predictor
-
-(fly.FDR <- colnames(snppca)[which(fly.qv1 < 0.05)]) ## identify which SNPs these are
 dim(snppca)
 rm(snppca)
 
@@ -1150,7 +1221,9 @@ load("/Users/dpadil10/Dropbox (ASU)/foraging_mode_Drosophila/data_analysis/chr2-
 
 dim(snppca)
 
-(fly.FDR.chr2 <- colnames(snppca)[which(fly.qv1.chr2 < 0.05)]) ## identify which SNPs these are
+(fly.FDR.prec.chr2 <- colnames(snppca)[which(fly.qv1.prec.chr2 < 0.001)]) ## identify which SNPs these are
+(fly.FDR.temp.chr2 <- colnames(snppca)[which(fly.qv1.temp.chr2 < 0.001)]) ## identify which SNPs these are
+(fly.FDR.temp.chr2 <- colnames(snppca)[which(fly.qv1.npp.chr2 < 0.001)]) ## identify which SNPs these are
 
 
 
@@ -1159,8 +1232,8 @@ dim(snppca)
 
 ## Manhattan plot with causal loci
  
-qvalues <- fly.qv1
-qvalues.chr2 <- fly.qv1.chr2
+qvalues <- fly.qv1.prec
+qvalues.chr2 <- fly.qv1.prec.chr2
 
 row <- as.data.frame(qvalues)
 str(row)
@@ -1171,20 +1244,17 @@ str(row.chr2)
 rownames(row.chr2) <- 1:nrow(row.chr2)
 
 
-(causal.set <- as.numeric(rownames(row)[which(row < 0.05)]))
-(fly.FDR <- gsub("[^0-9]", "", fly.FDR))
+(causal.set <- as.numeric(rownames(row)[which(row < 0.001)]))
+(fly.FDR.prec <- gsub("[^0-9]", "", fly.FDR.prec))
 
-head(afis[afis$variant.id == fly.FDR, c(2, 6, 7, 8, 9, 11, 21, 32)], n = 2) # One of the SNPs should be checked carefully as the position on chromosome 2L does not match the annotations. SNP163269 is at pos 3637803, which falls within the for gene. According to FlyBase, the gene mir-4972 stem loop is referred to Dmel\mir-4972 (CR43508, FBgn0263523). It is a miRNA_gene from Dmel. It has 3 annotated transcripts. Gene sequence location is 2L:3636967..3637073. Its molecular function is unknown. The biological processes in which it is involved are not known. No alleles are reported. [https://flybase.org/reports/FBgn0263523](https://flybase.org/reports/FBgn0263523)
+head(afis[afis$variant.id == 162369, c(2, 6, 7, 8, 9, 11, 21, 32)], n = 2)
+head(afis[afis$variant.id == 163496, c(2, 6, 7, 8, 9, 11, 21, 32)], n = 2)
+head(afis[afis$variant.id == 163504, c(2, 6, 7, 8, 9, 11, 21, 32)], n = 2)
 
-(causal.set.chr2 <- as.numeric(rownames(row.chr2)[which(row.chr2 < 0.05)]))
-(fly.FDR.chr2 <- gsub("[^0-9]", "", fly.FDR.chr2))
+(causal.set.chr2 <- as.numeric(rownames(row.chr2)[which(row.chr2 < 0.001)]))
+(fly.FDR.prec.chr2 <- gsub("[^0-9]", "", fly.FDR.prec.chr2))
 
-head(afis[afis$variant.id == fly.FDR.chr2, c(2, 6, 7, 8, 9, 11, 21, 32)], n = 2)
-
-data.frame(causal.set.chr2, fly.FDR.chr2)
-
-#snps.sel.chr2 <- unique(fly.FDR.chr2)
-#save(snps.sel.chr2, file = "snps.sel.chr2")
+data.frame(causal.set.chr2, fly.FDR.prec.chr2)
 
 quartz()
 
@@ -1194,14 +1264,14 @@ layout(matrix(c(0, 1, 1, 0,
                 0, 2, 2, 0), nrow = 4, ncol = 4, byrow = TRUE))
 
 
-plot(-log10(qvalues), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, ylim = c(0, 2), main = "for")
-points(causal.set, -log10(qvalues)[causal.set], pch = 19, col = alpha("red", 0.3))
-text(causal.set, (-log10(qvalues)[causal.set] - 0.1), fly.FDR, col = "red")
+plot(-log10(qvalues), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, main = "for")
+points(causal.set[c(3, 5)], -log10(qvalues)[causal.set[c(3, 5)]], pch = 19, col = "red")
+text(causal.set[c(3, 5)], (-log10(qvalues)[causal.set[c(3, 5)]] - 0.4), fly.FDR.prec[c(3, 5)], col = "red")
 
 
-plot(-log10(qvalues.chr2), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, ylim = c(0, 3), main = "Chr 2L")
-points(causal.set.chr2[c(37, 38)], -log10(qvalues.chr2)[causal.set.chr2[c(37, 38)]], pch = 19, col = alpha("red", 0.3))
-text(causal.set.chr2[c(37, 38)], (-log10(qvalues.chr2)[causal.set.chr2[c(37, 38)]] - 0.1), fly.FDR.chr2[c(37, 38)], col = "red", cex = 0.5)
+plot(-log10(qvalues.chr2), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, main = "Chr 2L")
+points(causal.set.chr2[c(19, 20)], -log10(qvalues.chr2)[causal.set.chr2[c(19, 20)]], pch = 19, col = "red")
+text(causal.set.chr2[c(19, 20)], (-log10(qvalues.chr2)[causal.set.chr2[c(19, 20)]] - 0.5), fly.FDR.prec.chr2[c(19, 20)], col = "red", cex = 0.8)
 
 
 
@@ -1213,9 +1283,9 @@ text(causal.set.chr2[c(37, 38)], (-log10(qvalues.chr2)[causal.set.chr2[c(37, 38)
 
 quartz()
 
-## png("adaptation_revision.png", width = 7, height = 7, units = "in", res = 300)
+## png("adaptation_revision2.png", width = 7, height = 7, units = "in", res = 300)
 
-## pdf("adaptation_revision.pdf")
+## pdf("adaptation_revision2.pdf")
 
 
 layout(matrix(c(1, 1, 2, 2,
@@ -1223,28 +1293,30 @@ layout(matrix(c(1, 1, 2, 2,
                 3, 3, 4, 4,
                 3, 3, 4, 4), nrow = 4, ncol = 4, byrow = FALSE))
 
-hist(fly.pv1$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "for", ylim = c(0, 350))
-legend("top", paste("K = 9\nGIF = ", round(fly.pv1$gif, 3)), bty = "n")
+hist(fly.pv1.prec$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "for", ylim = c(0, 350))
+legend("top", paste("K = 9\nGIF = ", round(fly.pv1.prec$gif, 3)), bty = "n")
 mtext("(a)", side = 2, at = 365, line = 2.5, las = 1, font = 2, family = "serif")
 
-plot(-log10(qvalues), pch = 19, cex = 1, bg = "gray", col = alpha("gray", 0.6), xlab = "SNP", las = 1, ylim = c(0, 2))
-points(causal.set, -log10(qvalues)[causal.set], pch = 19, col = "black")
-text(causal.set, (-log10(qvalues)[causal.set] - 0.15), fly.FDR, col = "black")
+plot(-log10(qvalues), pch = 19, cex = 1, bg = "gray", col = alpha("gray", 0.6), xlab = "SNP", las = 1)
+points(causal.set[c(3, 5)], -log10(qvalues)[causal.set[c(3, 5)]], pch = 19, col = "red")
+text(causal.set[c(3, 5)], (-log10(qvalues)[causal.set[c(3, 5)]] - 0.4), fly.FDR.prec[c(3, 5)], col = "red")
 
-hist(fly.pv1.chr2$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "Chr 2L", ylim = c(0, 150000))
-legend("top", paste("K = 8\nGIF = ", round(fly.pv1.chr2$gif, 3)), bty = "n")
-mtext("(b)", side = 2, at = 158010, line = 4, las = 1, font = 2, family = "serif")
+par(mar = c(6, 7, 4.1, 1.5), mgp = c(4, 1.5, 0))
+hist(fly.pv1.prec.chr2$calibrated.pvalue[ , 1], xlab = "GIF-adjusted p-values", las = 1, main = "Chr 2L", ylim = c(0, 120000))
+legend("top", paste("K = 8\nGIF = ", round(fly.pv1.prec.chr2$gif, 3)), bty = "n")
+mtext("(b)", side = 2, at = 122000, line = 4.5, las = 1, font = 2, family = "serif")
 
-plot(-log10(qvalues.chr2), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, ylim = c(0, 3), main = "")
-points(causal.set.chr2[-c(37, 38)], -log10(qvalues.chr2)[causal.set.chr2[-c(37, 38)]], pch = 19, col = "black")
-points(causal.set.chr2[c(37, 38)], -log10(qvalues.chr2)[causal.set.chr2[c(37, 38)]], pch = 19, col = "red")
-text(causal.set.chr2[c(37, 38)], (-log10(qvalues.chr2)[causal.set.chr2[c(37, 38)]] - 0.13), fly.FDR.chr2[c(37, 38)], col = "red", cex = 0.8)
+par(mar = c(5.1, 4.1, 4.1, 1.5), mgp = c(3, 1, 0))
+plot(-log10(qvalues.chr2), pch = 19, cex = 1, bg = "black", col = alpha("gray", 0.3), xlab = "SNP", las = 1, main = "")
+points(causal.set.chr2[-c(19, 20)], -log10(qvalues.chr2)[causal.set.chr2[-c(19, 20)]], pch = 19, col = "black")
+points(causal.set.chr2[c(19, 20)], -log10(qvalues.chr2)[causal.set.chr2[c(19, 20)]], pch = 19, col = "red")
+text(causal.set.chr2[c(19, 20)], (-log10(qvalues.chr2)[causal.set.chr2[c(19, 20)]] - 0.5), fly.FDR.prec.chr2[c(19, 20)], col = "red", cex = 0.8)
 
 
 ## dev.off()
 
 ```
 <p align = "justify">
-<font size="4"> **Figure 5.** Genotype-environment association test based on a latent factor mixed model with ridge penalty. **(a)** Distribution of adjusted p-values using the default genomic inflation factor, and the for loci (SNPs) potentially affected by the PC2 predictor variable. Likewise, **(b)** displays the same analysis for the entire chromosome 2L. Bold dots represent loci considered to be under selection according to a False Discovery Rate of 0.05. </font>
+<font size="4"> **Figure 5.** Genotype-environment association test based on a latent factor mixed model with ridge penalty. **(a)** Distribution of adjusted p-values using the default genomic inflation factor, and the for loci (SNPs) potentially affected by precipitation. Likewise, **(b)** displays the same analysis for the entire chromosome 2L. Bold dots represent loci considered to be under selection according to a False Discovery Rate of 0.001. </font>
 </p>
 <br><br>
